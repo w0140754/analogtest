@@ -118,6 +118,7 @@
   <button id="smackButton" class="ui-btn">SMACK</button>
   <button id="punchButton" class="ui-btn">PUNCH</button>
   <button id="kickButton"  class="ui-btn">KICK</button>
+  <button id="exitToMapButton" class="ui-btn">EXIT TO MAP</button>
 </div>
 
 <div id="joystick"><div id="stick"></div></div>
@@ -341,9 +342,28 @@ let battleMode = false;
 let battleBusy = false;
 let runTeleportInProgress = false;
 
+
+const exitToMapButton = document.getElementById("exitToMapButton");
+
+exitToMapButton.addEventListener("click", () => {
+  fadeOverlay.style.pointerEvents = "auto";
+  fadeOverlay.style.opacity = "1";
+
+  setTimeout(() => {
+    // Optional: you can pass the tile type later like this:
+    // window.location.href = "outerworld.html?from=forest";
+
+    window.location.href = "outerworld.html";
+  }, 400);
+});
+
+
+      
 function setUIMode(mode) {
+      
   currentUIMode = mode;
 
+  exitToMapButton.style.display = (battleMode ? "none" : "inline-block");
   defaultUI.style.display  = (mode === "default") ? "block" : "none";
   harvestBtn.style.display = (mode === "blossom") ? "inline-block" : "none";
 
