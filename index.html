@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>Mobile 2D Layout Test</title>
+<title>Mobile 2D Test</title>
 <style>
   html, body {
     margin: 0; padding: 0;
     overflow: hidden;
+    background: black;
     touch-action: none;
-    background: #000;
   }
 
   #gameCanvas {
@@ -19,15 +19,14 @@
     height: 100vh;
   }
 
-  /* JOYSTICK */
+  /* JOYSTICK (hidden by default) */
   #joystick {
     position: absolute;
-    bottom: 10vh;
-    left: 10vw;
     width: 120px;
     height: 120px;
     border-radius: 50%;
     background: rgba(255,255,255,0.15);
+    display: none;
     touch-action: none;
   }
 
@@ -35,10 +34,11 @@
     position: absolute;
     width: 60px;
     height: 60px;
-    background: rgba(255,255,255,0.35);
     border-radius: 50%;
-    top: 30px;
+    background: rgba(255,255,255,0.4);
     left: 30px;
+    top: 30px;
+    touch-action: none;
   }
 </style>
 </head>
@@ -50,6 +50,154 @@
   <div id="stick"></div>
 </div>
 
-<script src="game.js"></script>
+<script>
+// =============== CANVAS ===============
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+// =============== ASSETS ===============
+const bg = new Image();
+bg.src = "background.png"; // ★ replace with your file
+
+const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
+  const img = new Image();
+  img.src = src;
+  return img;
+});
+
+// =============== PLAYER ===============
+let player = {
+  x: window.innerWidth / 2,
+  y: window.innerHeight / 2,
+  speed: 180,
+  frame: 0,
+  frameTimer: 0,
+  scale: 0.35  // ★ adjust size
+};
+
+// =============== JOYSTICK ===============
+const joyDiv = document.getElementById("joystick");
+const stick = document.getElementById("stick");
+
+let joy = {
+  active: false,
+  dx: 0,
+  dy: 0,
+  originX: 0,
+  originY: 0
+};
+
+// =============== TOUCH LOGIC ===============
+canvas.addEventListener("touchstart", e => {
+  const t = e.touches[0];
+
+  joy.active = true;
+  joy.originX = t.clientX;
+  joy.originY = t.clientY;
+
+  // show joystick where finger touched
+  joyDiv.style.left = (t.clientX - 60) + "px";
+  joyDiv.style.top = (t.clientY - 60) + "px";
+  joyDiv.style.display = "block";
+
+  stick.style.left = "30px";
+  stick.style.top = "30px";
+});
+
+canvas.addEventListener("touchmove", e => {
+  if (!joy.active) return;
+
+  const t = e.touches[0];
+  const dx = t.clientX - joy.originX;
+  const dy = t.clientY - joy.originY;
+
+  const dist = Math.hypot(dx, dy);
+  const max = 40;
+
+  let ndx = dx;
+  let ndy = dy;
+
+  if (dist > max) {
+    ndx = (dx / dist) * max;
+    ndy = (dy / dist) * max;
+  }
+
+  stick.style.left = (30 + ndx) + "px";
+  stick.style.top = (30 + ndy) + "px";
+
+  joy.dx = ndx / max;
+  joy.dy = ndy / max;
+});
+
+canvas.addEventListener("touchend", () => {
+  joy.active = false;
+  joy.dx = joy.dy = 0;
+  joyDiv.style.display = "none";
+});
+
+// =============== BACKGROUND DRAW (NO DISTORTION) ===============
+function drawBackground() {
+  const imgW = bg.width;
+  const imgH = bg.height;
+  const canW = canvas.width;
+  const canH = canvas.height;
+
+  const scale = Math.max(canW / imgW, canH / imgH);
+  const drawW = imgW * scale;
+  const drawH = imgH * scale;
+
+  const offsetX = (canW - drawW) / 2;
+  const offsetY = (canH - drawH) / 2;
+
+  ctx.drawImage(bg, offsetX, offsetY, drawW, drawH);
+}
+
+// =============== MAIN LOOP ===============
+let last = 0;
+function loop(t) {
+  const dt = (t - last) / 1000;
+  last = t;
+
+  update(dt);
+  draw();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+function update(dt) {
+  // move
+  player.x += joy.dx * player.speed * dt;
+  player.y += joy.dy * player.speed * dt;
+
+  // animate
+  player.frameTimer += dt;
+  if (player.frameTimer > 0.2) {
+    player.frame = (player.frame + 1) % frames.length;
+    player.frameTimer = 0;
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawBackground();
+
+  const img = frames[player.frame];
+  if (img.width > 0) {
+    const w = img.width * player.scale;
+    const h = img.height * player.scale;
+    ctx.drawImage(img, player.x - w/2, player.y - h/2, w, h);
+  }
+}
+</script>
+
 </body>
 </html>
