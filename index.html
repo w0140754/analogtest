@@ -19,7 +19,6 @@
     height: 100vh;
   }
 
-  /* JOYSTICK (hidden by default) */
   #joystick {
     position: absolute;
     width: 120px;
@@ -51,7 +50,9 @@
 </div>
 
 <script>
-// =============== CANVAS ===============
+// ==========================================
+// CANVAS
+// ==========================================
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -62,40 +63,55 @@ function resize() {
 resize();
 window.addEventListener("resize", resize);
 
-// =============== ASSETS ===============
+// ==========================================
+// ASSETS
+// ==========================================
 const bg = new Image();
-bg.src = "background.png"; // ★ your map image
+bg.src = "background.png";
 
 const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
-  const img = new Image();
-  img.src = src;
-  return img;
+  const i = new Image();
+  i.src = src;
+  return i;
 });
 
-// =============== PLAYER ===============
+// ==========================================
+// PLAYER
+// ==========================================
 let player = {
-  x: 1500,      // start somewhere not (0,0)
-  y: 1500,
+  x: 500,
+  y: 500,
   speed: 200,
   frame: 0,
   frameTimer: 0,
-  scale: 0.28  // ★ smaller player now
+  scale: 0.25  // smaller now
 };
 
-// =============== CAMERA ===============
+// ==========================================
+// CAMERA (soft follow)
+// ==========================================
 let camera = { x: 0, y: 0 };
 
-// Keeps camera centered but clamped to the background edges
 function updateCamera() {
-  camera.x = player.x - canvas.width / 2;
-  camera.y = player.y - canvas.height / 2;
+  const camW = canvas.width;
+  const camH = canvas.height;
 
-  // Clamp camera to world boundaries
-  camera.x = Math.max(0, Math.min(camera.x, bg.width - canvas.width));
-  camera.y = Math.max(0, Math.min(camera.y, bg.height - canvas.height));
+  // The camera tries to center the player...
+  let targetX = player.x - camW / 2;
+  let targetY = player.y - camH / 2;
+
+  // ...but clamps within the world bounds
+  targetX = Math.max(0, Math.min(targetX, bg.width - camW));
+  targetY = Math.max(0, Math.min(targetY, bg.height - camH));
+
+  // Smooth camera motion (feel free to tune 0.1 → faster / slower follow)
+  camera.x += (targetX - camera.x) * 0.1;
+  camera.y += (targetY - camera.y) * 0.1;
 }
 
-// =============== JOYSTICK ===============
+// ==========================================
+// JOYSTICK
+// ==========================================
 const joyDiv = document.getElementById("joystick");
 const stick = document.getElementById("stick");
 
@@ -107,11 +123,11 @@ let joy = {
   originY: 0
 };
 
-// =============== TOUCH LOGIC ===============
+// Touch starts joystick
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
-
   joy.active = true;
+
   joy.originX = t.clientX;
   joy.originY = t.clientY;
 
@@ -123,6 +139,7 @@ canvas.addEventListener("touchstart", e => {
   stick.style.top = "30px";
 });
 
+// Move joystick
 canvas.addEventListener("touchmove", e => {
   if (!joy.active) return;
 
@@ -148,13 +165,16 @@ canvas.addEventListener("touchmove", e => {
   joy.dy = ndy / max;
 });
 
+// Lift finger = hide joystick
 canvas.addEventListener("touchend", () => {
   joy.active = false;
   joy.dx = joy.dy = 0;
   joyDiv.style.display = "none";
 });
 
-// =============== MAIN LOOP ===============
+// ==========================================
+// MAIN LOOP
+// ==========================================
 let last = 0;
 function loop(t) {
   const dt = (t - last) / 1000;
@@ -172,13 +192,13 @@ function update(dt) {
   player.x += joy.dx * player.speed * dt;
   player.y += joy.dy * player.speed * dt;
 
-  // Keep inside world boundaries
+  // Clamp player inside world
   if (bg.width > 0) {
     player.x = Math.max(0, Math.min(player.x, bg.width));
     player.y = Math.max(0, Math.min(player.y, bg.height));
   }
 
-  // Animate sprite
+  // Animate
   player.frameTimer += dt;
   if (player.frameTimer > 0.2) {
     player.frame = (player.frame + 1) % frames.length;
@@ -188,29 +208,33 @@ function update(dt) {
   updateCamera();
 }
 
+// ==========================================
+// DRAW
+// ==========================================
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Draw WORLD BACKGROUND (offset by camera)
+  // Draw section of world image
   if (bg.width > 0) {
     ctx.drawImage(
       bg,
-      camera.x, camera.y,                   // source top-left
-      canvas.width, canvas.height,          // source size
-      0, 0,                                 // destination top-left
-      canvas.width, canvas.height           // destination size
+      camera.x, camera.y,
+      canvas.width, canvas.height,
+      0, 0,
+      canvas.width, canvas.height
     );
   }
 
-  // Draw PLAYER (at center of screen)
+  // Draw player relative to camera
   const img = frames[player.frame];
   if (img.width > 0) {
     const w = img.width * player.scale;
     const h = img.height * player.scale;
+
     ctx.drawImage(
       img,
-      canvas.width/2 - w/2,
-      canvas.height/2 - h/2,
+      player.x - camera.x - w / 2,
+      player.y - camera.y - h / 2,
       w, h
     );
   }
