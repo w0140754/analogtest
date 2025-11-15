@@ -330,7 +330,7 @@ let items = [
 ];
 
 // =====================================================
-// MONSTER (with roaming AI + bobbing + breathing)
+// MONSTER (roaming + bobbing + breathing, no shadow)
 // =====================================================
 let monster = {
   x: 400,
@@ -347,6 +347,7 @@ let monster = {
   hitFlash: 0,         // red flash timer when taking damage
   lungeOffsetX: 0,
   lungeOffsetY: 0,
+  facingLeft: false,
 
   // roaming parameters
   roamSpeed: 40,
@@ -362,6 +363,10 @@ function startMonsterRoam() {
   monster.roamDirX = Math.cos(angle);
   monster.roamDirY = Math.sin(angle);
   monster.roamTimer = 0.8 + Math.random() * 1.2; // 0.8–2.0s
+
+  // Update facing based on overall direction
+  if (monster.roamDirX < -0.1) monster.facingLeft = true;
+  else if (monster.roamDirX > 0.1) monster.facingLeft = false;
 }
 
 function startMonsterPause() {
@@ -450,6 +455,7 @@ fightBtn.addEventListener("click", () => {
   battleMode = true;
   battleBusy = false;
   monster.aiState = "battle";
+  monster.state = "attack";
   setUIMode("battle");
 });
 
@@ -477,6 +483,9 @@ function performMonsterCounterAttack() {
   const dy = player.y - monster.y;
   const len = Math.hypot(dx, dy) || 1;
   const LUNGE_DIST = 20;
+
+  if (dx < 0) monster.facingLeft = true;
+  else monster.facingLeft = false;
 
   monster.lungeOffsetX = (dx / len) * LUNGE_DIST;
   monster.lungeOffsetY = (dy / len) * LUNGE_DIST;
@@ -620,25 +629,11 @@ function updateMonsterAI(dt) {
     return;
   }
 
-  // Aggro radius: if player close, switch to aggro (no chasing, just posture)
-  const dxp = player.x - monster.x;
-  const dyp = player.y - monster.y;
-  const dist = Math.hypot(dxp, dyp);
-
-  const AGGRO_RADIUS = 120;
-
-  if (dist < AGGRO_RADIUS && !runTeleportInProgress) {
-    monster.aiState = "aggro";
-    monster.state = "attack";
-    return; // no roaming when aggro / waiting for FIGHT/RUN
-  } else if (monster.aiState === "aggro") {
-    // Player went away (e.g., via RUN teleport)
-    monster.aiState = "roam";
-    monster.state = "idle";
-    startMonsterRoam();
+  // While in aggro (player close, FIGHT/RUN up), monster stands still
+  if (monster.aiState === "aggro") {
+    return;
   }
 
-  // Normal roaming / pausing
   if (monster.aiState === "pause") {
     monster.pauseTimer -= dt;
     if (monster.pauseTimer <= 0) {
@@ -763,7 +758,7 @@ function update(dt) {
       const dx = player.x - monster.x;
       const dy = player.y - monster.y;
       const dist = Math.hypot(dx, dy);
-      if (dist < 90) nearMonster = true;
+      if (dist < 90) nearMonster = true;   // single radius now
     }
 
     let nearBlossom = false;
@@ -782,22 +777,27 @@ function update(dt) {
 
     if (nearMonster) {
       setUIMode("monsterChoice");
-      // Monster looks aggressive while FIGHT/RUN is up
-      if (monster.alive && monster.aiState !== "battle" && monster.aiState !== "dying") {
-        monster.state = "attack";
+      if (monster.alive && !battleMode) {
         monster.aiState = "aggro";
+        monster.state = "attack";
+        // face the player when in aggro
+        const dx = player.x - monster.x;
+        if (dx < 0) monster.facingLeft = true;
+        else if (dx > 0) monster.facingLeft = false;
       }
     } else if (nearBlossom) {
       setUIMode("blossom");
       if (monster.alive && monster.aiState === "aggro" && !battleMode) {
         monster.aiState = "roam";
         monster.state = "idle";
+        startMonsterRoam();
       }
     } else if (currentUIMode !== "default") {
       setUIMode("default");
       if (monster.alive && monster.aiState === "aggro" && !battleMode) {
         monster.aiState = "roam";
         monster.state = "idle";
+        startMonsterRoam();
       }
     }
   }
@@ -830,7 +830,7 @@ function drawHPBubbleOval(worldX, worldY, hp, hpMax) {
   const rx = w / 2;
   const ry = h / 2;
 
-  // Drop shadow ellipse
+  // Drop shadow ellipse for bubble
   ctx.fillStyle = "rgba(0,0,0,0.3)";
   ctx.beginPath();
   ctx.ellipse(cx, cy + 2, rx, ry, 0, 0, Math.PI * 2);
@@ -915,31 +915,15 @@ function draw() {
     const screenMY = worldMY - camera.y;
 
     // Bobbing & breathing
-    const bob = Math.sin(currentTime / 500) * 4;         // up/down
+    const bob = Math.sin(currentTime / 500) * 4;            // up/down
     const breathe = 1 + Math.sin(currentTime / 700) * 0.02; // ±2% scale
 
-    // Shadow (squashes slightly with bob)
-    const shadowY = screenMY + mh/2 + 4;
-    const shadowScale = 1 - (bob / 20); // tiny variance
-    ctx.save();
-    ctx.globalAlpha = 0.3;
-    ctx.fillStyle = "black";
-    ctx.beginPath();
-    ctx.ellipse(
-      screenMX,
-      shadowY,
-      (mw * 0.35) * shadowScale,
-      mh * 0.15,
-      0, 0, Math.PI * 2
-    );
-    ctx.fill();
-    ctx.restore();
-
-    // Monster sprite with bobbing + breathing
+    // Monster sprite with bobbing + breathing + facing
     ctx.save();
     ctx.globalAlpha = (monster.aiState === "dying") ? monster.fadeAlpha : 1;
     ctx.translate(screenMX, screenMY + bob);
-    ctx.scale(breathe, breathe);
+    const scaleX = (monster.facingLeft ? -1 : 1) * breathe;
+    ctx.scale(scaleX, breathe);
     ctx.drawImage(mImg, -mw/2, -mh/2, mw, mh);
     ctx.restore();
 
