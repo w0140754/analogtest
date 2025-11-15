@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+head>
 <meta charset="UTF-8" />
 <meta name="viewport"
       content="width=device-width,
@@ -59,15 +59,20 @@
   /* Buttons */
   #harvestButton,
   #fightButton,
-  #runButton {
+  #runButton,
+  #hitButton,
+  #smackButton,
+  #punchButton,
+  #kickButton {
     background: rgba(255,200,150,0.9);
     padding: 1vh 2.4vh;
     border-radius: 1vh;
-    font-size: 2.4vh;
+    font-size: 2.2vh;
     font-weight: bold;
     border: 2px solid white;
     color: black;
     display: none;
+    white-space: nowrap;
   }
 
   #fightButton {
@@ -77,6 +82,11 @@
   #runButton {
     background: rgba(180,200,255,0.95);
   }
+
+  #hitButton { background: rgba(255,230,150,0.95); }
+  #smackButton { background: rgba(255,210,150,0.95); }
+  #punchButton { background: rgba(255,190,150,0.95); }
+  #kickButton { background: rgba(255,170,150,0.95); }
 
   /* Joystick */
   #joystick {
@@ -96,6 +106,17 @@
     background: rgba(255,255,255,0.4);
     left: 30px; top: 30px;
   }
+
+  /* Fade overlay for RUN teleport */
+  #fadeOverlay {
+    position: fixed;
+    inset: 0;
+    background: black;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    z-index: 12000;
+  }
 </style>
 </head>
 
@@ -107,13 +128,25 @@
 <!-- UI BAR -->
 <div id="uiBar">
   <div id="defaultUI">UI BAR — buttons go here</div>
+
   <button id="harvestButton">HARVEST BLOSSOM</button>
+
+  <!-- Monster choice -->
   <button id="fightButton">FIGHT</button>
   <button id="runButton">RUN</button>
+
+  <!-- Battle buttons -->
+  <button id="hitButton">HIT</button>
+  <button id="smackButton">SMACK</button>
+  <button id="punchButton">PUNCH</button>
+  <button id="kickButton">KICK</button>
 </div>
 
 <!-- JOYSTICK -->
 <div id="joystick"><div id="stick"></div></div>
+
+<!-- FADE OVERLAY -->
+<div id="fadeOverlay"></div>
 
 <script>
 // =====================================================
@@ -141,8 +174,14 @@ collisionImg.src = "collision.png";
 const blossomImg = new Image();
 blossomImg.src = "item_blossom.png";
 
-const monsterImg = new Image();
-monsterImg.src = "monster_starwolf_idle.png";
+const monsterIdleImg = new Image();
+monsterIdleImg.src = "monster_starwolf_idle.png";
+
+const monsterAttackImg = new Image();
+monsterAttackImg.src = "monster_starwolf_attack.png";
+
+const monsterHurtImg = new Image();
+monsterHurtImg.src = "monster_starwolf_hurt.png";
 
 const frames = ["player1.png","player2.png","player3.png"].map(src => {
   const i = new Image();
@@ -188,11 +227,14 @@ function circleBlocked(cx, cy, r) {
 // =====================================================
 // PLAYER
 // =====================================================
-let DEBUG_HITBOX = false; // you said you turned it off
+let DEBUG_HITBOX = false;
+
+const START_X = 500;
+const START_Y = 500;
 
 let player = {
-  x: 500,
-  y: 500,
+  x: START_X,
+  y: START_Y,
   speed: 180,
   frame: 0,
   frameTimer: 0,
@@ -209,6 +251,18 @@ let player = {
 // =====================================================
 let camera = { x: 0, y: 0 };
 
+function clampCameraToBg() {
+  const cw = canvas.width;
+  const ch = canvas.height;
+  if (bg.width > 0 && bg.height > 0) {
+    camera.x = Math.max(0, Math.min(camera.x, bg.width - cw));
+    camera.y = Math.max(0, Math.min(camera.y, bg.height - ch));
+  } else {
+    camera.x = 0;
+    camera.y = 0;
+  }
+}
+
 function updateCamera() {
   const cw = canvas.width;
   const ch = canvas.height;
@@ -216,11 +270,9 @@ function updateCamera() {
   let tx = player.x - cw / 2;
   let ty = player.y - ch / 2;
 
-  tx = Math.max(0, Math.min(tx, bg.width - cw));
-  ty = Math.max(0, Math.min(ty, bg.height - ch));
-
   camera.x += (tx - camera.x) * 0.1;
   camera.y += (ty - camera.y) * 0.1;
+  clampCameraToBg();
 }
 
 // =====================================================
@@ -282,53 +334,139 @@ let items = [
 ];
 
 // =====================================================
-// MONSTER (stationary starwolf)
+// MONSTER (stationary starwolf with HP and animations)
 // =====================================================
 let monster = {
-  x: 400,
-  y: 400,
-  alive: true
+  x: 300,
+  y: 300,
+  alive: true,
+  hp: 10,
+  scale: 0.30,
+  state: "idle",     // "idle" or "dying"
+  fadeAlpha: 1,
+  attackFlash: 0     // seconds to show attack sprite
 };
 
 // =====================================================
-// UI BUTTONS
+// UI BUTTONS & MODES
 // =====================================================
 const defaultUI   = document.getElementById("defaultUI");
 const harvestBtn  = document.getElementById("harvestButton");
 const fightBtn    = document.getElementById("fightButton");
 const runBtn      = document.getElementById("runButton");
+const hitBtn      = document.getElementById("hitButton");
+const smackBtn    = document.getElementById("smackButton");
+const punchBtn    = document.getElementById("punchButton");
+const kickBtn     = document.getElementById("kickButton");
 
-harvestBtn.addEventListener("click", () => {
-  const item = items.find(i => i.type === "blossom" && !i.harvested);
-  if (item) item.harvested = true;
-  setUIMode("default");
-});
+const fadeOverlay = document.getElementById("fadeOverlay");
+
+let currentUIMode = "default"; // "default", "blossom", "monsterChoice", "battle", "none"
+let battleMode = false;
+let runTeleportInProgress = false;
+
+function setUIMode(mode) {
+  currentUIMode = mode;
+
+  defaultUI.style.display  = (mode === "default") ? "block" : "none";
+  harvestBtn.style.display = (mode === "blossom") ? "inline-block" : "none";
+
+  const monsterChoice = (mode === "monsterChoice");
+  fightBtn.style.display = monsterChoice ? "inline-block" : "none";
+  runBtn.style.display   = monsterChoice ? "inline-block" : "none";
+
+  const battle = (mode === "battle");
+  hitBtn.style.display   = battle ? "inline-block" : "none";
+  smackBtn.style.display = battle ? "inline-block" : "none";
+  punchBtn.style.display = battle ? "inline-block" : "none";
+  kickBtn.style.display  = battle ? "inline-block" : "none";
+
+  if (mode === "none") {
+    defaultUI.style.display  = "none";
+    harvestBtn.style.display = "none";
+    fightBtn.style.display   = "none";
+    runBtn.style.display     = "none";
+    hitBtn.style.display     = "none";
+    smackBtn.style.display   = "none";
+    punchBtn.style.display   = "none";
+    kickBtn.style.display    = "none";
+  }
+}
+
+setUIMode("default");
+
+// =====================================================
+// BATTLE & RUN ACTIONS
+// =====================================================
+
+// Disable movement during battle or teleport
+function movementLocked() {
+  return battleMode || runTeleportInProgress;
+}
 
 fightBtn.addEventListener("click", () => {
-  // For now: "defeat" the monster on Fight
-  if (monster.alive) {
-    monster.alive = false;
-  }
-  setUIMode("default");
+  if (!monster.alive) return;
+  battleMode = true;
+  setUIMode("battle");
 });
 
 runBtn.addEventListener("click", () => {
-  // Just close interaction for now
-  setUIMode("default");
+  if (!monster.alive) return;
+  battleMode = false;
+  setUIMode("none");
+  startRunTeleport();
 });
 
-// Simple UI state handling
-function setUIMode(mode) {
-  // modes: "default", "blossom", "monster"
-  defaultUI.style.display  = (mode === "default") ? "block" : "none";
-  harvestBtn.style.display = (mode === "blossom") ? "inline-block" : "none";
-  const monsterMode = (mode === "monster");
-  fightBtn.style.display   = monsterMode ? "inline-block" : "none";
-  runBtn.style.display     = monsterMode ? "inline-block" : "none";
+// Attack button helper
+function performAttack(damage) {
+  if (!battleMode || !monster.alive) return;
+
+  monster.hp -= damage;
+  monster.attackFlash = 0.2; // show attack sprite briefly
+
+  if (monster.hp <= 0) {
+    monster.hp = 0;
+    monster.alive = false;
+    monster.state = "dying";
+    monster.fadeAlpha = 1;
+    battleMode = false;
+    setUIMode("default");
+  }
 }
 
-// start in default mode
-setUIMode("default");
+// Attach attacks
+hitBtn.addEventListener("click",   () => performAttack(2));
+smackBtn.addEventListener("click", () => performAttack(3));
+punchBtn.addEventListener("click", () => performAttack(4));
+kickBtn.addEventListener("click",  () => performAttack(5));
+
+// =====================================================
+// RUN TELEPORT WITH FADE
+// =====================================================
+function startRunTeleport() {
+  runTeleportInProgress = true;
+  fadeOverlay.style.pointerEvents = "auto";
+  fadeOverlay.style.opacity = "1";
+
+  // Fade to black, then teleport
+  setTimeout(() => {
+    // Teleport player to start
+    player.x = START_X;
+    player.y = START_Y;
+    camera.x = player.x - canvas.width / 2;
+    camera.y = player.y - canvas.height / 2;
+    clampCameraToBg();
+
+    // Fade back in
+    fadeOverlay.style.opacity = "0";
+
+    setTimeout(() => {
+      fadeOverlay.style.pointerEvents = "none";
+      runTeleportInProgress = false;
+      setUIMode("default");
+    }, 400);
+  }, 400);
+}
 
 // =====================================================
 // LOOP
@@ -348,17 +486,24 @@ requestAnimationFrame(loop);
 // UPDATE
 // =====================================================
 function update(dt) {
-  player.moving = Math.abs(joy.dx) > 0.05 || Math.abs(joy.dy) > 0.05;
+  const lockMove = movementLocked();
 
-  if (player.moving) {
-    const nextX = player.x + joy.dx * player.speed * dt;
-    const nextY = player.y + joy.dy * player.speed * dt;
+  // Player movement
+  if (!lockMove) {
+    player.moving = Math.abs(joy.dx) > 0.05 || Math.abs(joy.dy) > 0.05;
 
-    if (!circleBlocked(nextX, player.y + player.hitOffsetY, player.hitR))
-      player.x = nextX;
+    if (player.moving) {
+      const nextX = player.x + joy.dx * player.speed * dt;
+      const nextY = player.y + joy.dy * player.speed * dt;
 
-    if (!circleBlocked(player.x, nextY + player.hitOffsetY, player.hitR))
-      player.y = nextY;
+      if (!circleBlocked(nextX, player.y + player.hitOffsetY, player.hitR))
+        player.x = nextX;
+
+      if (!circleBlocked(player.x, nextY + player.hitOffsetY, player.hitR))
+        player.y = nextY;
+    }
+  } else {
+    player.moving = false;
   }
 
   // Animation
@@ -373,39 +518,53 @@ function update(dt) {
   }
 
   // Facing
-  if (joy.dx < -0.05) player.facingLeft = true;
-  else if (joy.dx > 0.05) player.facingLeft = false;
-
-  // Proximity checks
-  let nearMonster = false;
-  if (monster.alive) {
-    const dx = player.x - monster.x;
-    const dy = player.y - monster.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist < 90) nearMonster = true;
+  if (!lockMove) {
+    if (joy.dx < -0.05) player.facingLeft = true;
+    else if (joy.dx > 0.05) player.facingLeft = false;
   }
 
-  let nearBlossom = false;
-  if (!nearMonster) { // monster has priority
-    for (const item of items) {
-      if (item.harvested) continue;
-      const dx = player.x - item.x;
-      const dy = player.y - item.y;
+  // Monster animation timers
+  if (monster.attackFlash > 0) {
+    monster.attackFlash -= dt;
+    if (monster.attackFlash < 0) monster.attackFlash = 0;
+  }
+
+  if (!monster.alive && monster.state === "dying") {
+    monster.fadeAlpha -= dt * 1.8; // fade over ~0.55s
+    if (monster.fadeAlpha < 0) monster.fadeAlpha = 0;
+  }
+
+  // Proximity UI logic only when not in battle or teleport
+  if (!movementLocked()) {
+    let nearMonster = false;
+    if (monster.alive) {
+      const dx = player.x - monster.x;
+      const dy = player.y - monster.y;
       const dist = Math.hypot(dx, dy);
-      if (dist < 80) {
-        nearBlossom = true;
-        break;
+      if (dist < 90) nearMonster = true;
+    }
+
+    let nearBlossom = false;
+    if (!nearMonster) { // monster has priority
+      for (const item of items) {
+        if (item.harvested) continue;
+        const dx = player.x - item.x;
+        const dy = player.y - item.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 80) {
+          nearBlossom = true;
+          break;
+        }
       }
     }
-  }
 
-  // UI mode priority: monster > blossom > default
-  if (nearMonster) {
-    setUIMode("monster");
-  } else if (nearBlossom) {
-    setUIMode("blossom");
-  } else {
-    setUIMode("default");
+    if (nearMonster) {
+      setUIMode("monsterChoice");
+    } else if (nearBlossom) {
+      setUIMode("blossom");
+    } else if (currentUIMode !== "default") {
+      setUIMode("default");
+    }
   }
 
   updateCamera();
@@ -442,14 +601,25 @@ function draw() {
     }
   }
 
-  // Monster (stationary starwolf)
-  if (monster.alive) {
-    const mScale = 0.2; // adjust if needed
-    const mw = monsterImg.width * mScale;
-    const mh = monsterImg.height * mScale;
+  // Monster
+  if (monster.alive || (monster.state === "dying" && monster.fadeAlpha > 0)) {
+    let mImg = monsterIdleImg;
+    if (monster.state === "dying") {
+      mImg = monsterHurtImg;
+    } else if (monster.attackFlash > 0) {
+      mImg = monsterAttackImg;
+    }
+
+    const mScale = monster.scale;
+    const mw = mImg.width * mScale;
+    const mh = mImg.height * mScale;
     const mx = monster.x - camera.x - mw / 2;
     const my = monster.y - camera.y - mh / 2;
-    ctx.drawImage(monsterImg, mx, my, mw, mh);
+
+    ctx.save();
+    ctx.globalAlpha = (monster.state === "dying") ? monster.fadeAlpha : 1;
+    ctx.drawImage(mImg, mx, my, mw, mh);
+    ctx.restore();
   }
 
   // Player
@@ -470,7 +640,7 @@ function draw() {
     ctx.drawImage(img, drawX, drawY, w, h);
   }
 
-  // Debug player hitbox (still available if you flip DEBUG_HITBOX)
+  // Debug Hitbox
   if (DEBUG_HITBOX) {
     const cx = player.x - camera.x;
     const cy = player.y - camera.y + player.hitOffsetY;
