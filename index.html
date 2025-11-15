@@ -15,14 +15,14 @@
     touch-action: none;
   }
 
-  /* TRUE GAMEPLAY AREA: 90% of screen */
+  /* TRUE GAMEPLAY AREA */
   #gameCanvas {
     display: block;
     width: 100vw;
-    height: 90vh;   /* ← TRUE space, not overlay */
+    height: 90vh;
   }
 
-  /* TRUE bottom UI bar */
+  /* UI BAR (10%) */
   #uiBar {
     width: 100vw;
     height: 10vh;
@@ -37,7 +37,19 @@
     justify-content: center;
   }
 
-  /* Joystick floats over gameplay ONLY */
+  /* Big centered Harvest Button */
+  #harvestButton {
+    background: rgba(255,200,150,0.9);
+    padding: 1vh 2vh;
+    border-radius: 1vh;
+    font-size: 2.5vh;
+    font-weight: bold;
+    border: 2px solid white;
+    color: black;
+    display: none;   /* shown only near item */
+  }
+
+  /* Joystick */
   #joystick {
     position: absolute;
     width: 120px; height: 120px;
@@ -53,33 +65,35 @@
     width: 60px; height: 60px;
     border-radius: 50%;
     background: rgba(255,255,255,0.4);
-    left: 30px;
-    top: 30px;
+    left: 30px; top: 30px;
   }
 </style>
 </head>
 
 <body>
 
-<!-- TOP 90% TRUE GAME AREA -->
+<!-- GAME CANVAS (top 90%) -->
 <canvas id="gameCanvas"></canvas>
 
-<!-- BOTTOM UI BAR -->
-<div id="uiBar"> UI BAR — buttons go here </div>
+<!-- UI BAR (bottom 10%) -->
+<div id="uiBar">
+  <div id="defaultUI">UI BAR — buttons go here</div>
+  <button id="harvestButton">HARVEST BLOSSOM</button>
+</div>
 
 <!-- JOYSTICK -->
 <div id="joystick"><div id="stick"></div></div>
 
 <script>
 // =====================================================
-// CANVAS (REAL HEIGHT)
+// CANVAS SETUP
 // =====================================================
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
 function resize() {
   canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight * 0.90;  // EXACT GAME AREA
+  canvas.height = window.innerHeight * 0.90;  // TOP 90%
 }
 resize();
 window.addEventListener("resize", resize);
@@ -93,7 +107,10 @@ bg.src = "background.png";
 const collisionImg = new Image();
 collisionImg.src = "collision.png";
 
-const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
+const blossomImg = new Image();
+blossomImg.src = "item_blossom.png";
+
+const frames = ["player1.png","player2.png","player3.png"].map(src => {
   const i = new Image();
   i.src = src;
   return i;
@@ -121,10 +138,10 @@ function pixelBlocked(x, y) {
 }
 
 // =====================================================
-// CIRCLE HITBOX CHECK
+// CIRCLE HITBOX
 // =====================================================
 function circleBlocked(cx, cy, r) {
-  const N = 10;  // sample points
+  const N = 10;
   for (let i = 0; i < N; i++) {
     const angle = (i / N) * Math.PI * 2;
     const px = cx + Math.cos(angle) * r;
@@ -149,9 +166,8 @@ let player = {
   facingLeft: false,
   moving: false,
 
-  // ⭐ Circle hitbox:
-  hitR: 40,      // radius in pixels
-  hitOffsetY: 18 // moves circle DOWN to feet
+  hitR: 40,
+  hitOffsetY: 10
 };
 
 // =====================================================
@@ -212,6 +228,7 @@ canvas.addEventListener("touchmove", e => {
 
   stick.style.left = (30 + ndx) + "px";
   stick.style.top  = (30 + ndy) + "px";
+
   joy.dx = ndx / max;
   joy.dy = ndy / max;
 });
@@ -223,12 +240,43 @@ canvas.addEventListener("touchend", () => {
 });
 
 // =====================================================
+// ITEMS SYSTEM
+// =====================================================
+
+// One blossom at (250, 250)
+let items = [
+  {
+    type: "blossom",
+    x: 250,
+    y: 250,
+    harvested: false
+  }
+];
+
+// =====================================================
+// UI BUTTON LOGIC
+// =====================================================
+const defaultUI = document.getElementById("defaultUI");
+const harvestButton = document.getElementById("harvestButton");
+
+harvestButton.addEventListener("click", () => {
+  // find the blossom and remove it
+  const item = items.find(i => !i.harvested && i.type === "blossom");
+  if (item) item.harvested = true;
+
+  // restore UI
+  harvestButton.style.display = "none";
+  defaultUI.style.display = "block";
+});
+
+// =====================================================
 // GAME LOOP
 // =====================================================
 let last = 0;
 function loop(t) {
   const dt = (t - last) / 1000;
   last = t;
+
   update(dt);
   draw();
   requestAnimationFrame(loop);
@@ -245,11 +293,9 @@ function update(dt) {
     const nextX = player.x + joy.dx * player.speed * dt;
     const nextY = player.y + joy.dy * player.speed * dt;
 
-    // X axis
     if (!circleBlocked(nextX, player.y + player.hitOffsetY, player.hitR))
       player.x = nextX;
 
-    // Y axis
     if (!circleBlocked(player.x, nextY + player.hitOffsetY, player.hitR))
       player.y = nextY;
   }
@@ -269,6 +315,30 @@ function update(dt) {
     player.frame = 0;
   }
 
+  // Check proximity to blossom
+  let nearBlossom = false;
+  for (const item of items) {
+    if (item.harvested) continue;
+
+    const dx = player.x - item.x;
+    const dy = player.y - item.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < 80) { // interaction distance
+      nearBlossom = true;
+      break;
+    }
+  }
+
+  // Update UI
+  if (nearBlossom) {
+    defaultUI.style.display = "none";
+    harvestButton.style.display = "block";
+  } else {
+    harvestButton.style.display = "none";
+    defaultUI.style.display = "block";
+  }
+
   updateCamera();
 }
 
@@ -278,14 +348,29 @@ function update(dt) {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  if (bg.width > 0) {
-    ctx.drawImage(
-      bg,
-      camera.x, camera.y,
-      canvas.width, canvas.height,
-      0, 0,
-      canvas.width, canvas.height
-    );
+  // Draw background
+  ctx.drawImage(
+    bg,
+    camera.x, camera.y,
+    canvas.width, canvas.height,
+    0, 0,
+    canvas.width, canvas.height
+  );
+
+  // Draw items
+  for (const item of items) {
+    if (item.harvested) continue;
+
+    if (item.type === "blossom") {
+      const size = 32; // draw size
+      ctx.drawImage(
+        blossomImg,
+        item.x - camera.x - size/2,
+        item.y - camera.y - size/2,
+        size,
+        size
+      );
+    }
   }
 
   // Draw player
@@ -306,9 +391,7 @@ function draw() {
     ctx.drawImage(img, drawX, drawY, w, h);
   }
 
-  // =====================================================
-  // DEBUG HITBOX (circle)
-  // =====================================================
+  // DEBUG HITBOX
   if (DEBUG_HITBOX) {
     const cx = player.x - camera.x;
     const cy = player.y - camera.y + player.hitOffsetY;
@@ -321,9 +404,9 @@ function draw() {
 
     ctx.fillStyle = "cyan";
     for (let i = 0; i < 10; i++) {
-      const angle = (i / 10) * Math.PI * 2;
-      const px = cx + Math.cos(angle) * player.hitR;
-      const py = cy + Math.sin(angle) * player.hitR;
+      const a = i / 10 * Math.PI * 2;
+      const px = cx + Math.cos(a) * player.hitR;
+      const py = cy + Math.sin(a) * player.hitR;
       ctx.fillRect(px - 2, py - 2, 4, 4);
     }
   }
