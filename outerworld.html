@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport"
+      content="width=device-width,initial-scale=1.0,viewport-fit=cover,user-scalable=no" />
+<title>Outerworld — 5x5 Grid with Cards</title>
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #05070b;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #f9fafb;
+    overflow: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== LAYOUT ===== */
+  #outerRoot {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* Top banner */
+  #banner {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    background: linear-gradient(to right, #111827, #020617);
+    border-bottom: 1px solid rgba(148,163,184,0.3);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  #banner-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  #banner-title {
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #cbd5f5;
+  }
+
+  #banner-sub {
+    font-size: 12px;
+    color: #9ca3af;
+  }
+
+  #banner-coords {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(15,23,42,0.9);
+    border: 1px solid rgba(148,163,184,0.5);
+    color: #e5e7eb;
+    white-space: nowrap;
+  }
+
+  /* Middle: grid wrapper */
+  #gridWrapper {
+    flex: 1 1 auto;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* Square grid area */
+  #gridSquare {
+    position: relative;
+    width: min(90vw, 90vh);
+    max-width: 560px;
+    aspect-ratio: 1 / 1;
+    background: radial-gradient(circle at top, #1e293b, #020617);
+    border-radius: 16px;
+    box-shadow: 0 18px 40px rgba(15,23,42,0.9);
+    padding: 10px;
+    box-sizing: border-box;
+    display: flex;
+  }
+
+  #grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    gap: 4px;
+  }
+
+  .tile {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #020617;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(15,23,42,0.9);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+
+  .tile:active {
+    transform: scale(0.97);
+  }
+
+  .tile-empty {
+    background-color: #020617;
+    box-shadow: inset 0 0 0 1px rgba(31,41,55,0.8);
+  }
+
+  .tile-highlight-playable {
+    box-shadow:
+      0 0 0 2px rgba(250,204,21,0.9),
+      0 0 18px rgba(250,204,21,0.7);
+  }
+
+  /* Player indicator */
+  .tile-player::after {
+    content: "⬤";
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 18px;
+    text-shadow: 0 0 4px rgba(0,0,0,0.8);
+  }
+
+  /* A subtle "you are here" ring */
+  .tile-player {
+    box-shadow:
+      0 0 0 2px rgba(96,165,250,0.8),
+      0 0 22px rgba(37,99,235,0.95);
+  }
+
+  /* ===== BOTTOM UI ===== */
+  #bottomUI {
+    flex: 0 0 auto;
+    background: linear-gradient(to top, #020617, #020617f0);
+    border-top: 1px solid rgba(148,163,184,0.4);
+    padding: 6px 10px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* ENTER button row */
+  #enterRow {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2px;
+  }
+
+  #enterButton {
+    display: none;
+    padding: 6px 18px;
+    font-size: 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(249,250,251,0.9);
+    background: linear-gradient(to right, #22c55e, #4ade80);
+    color: #022c22;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 6px 14px rgba(34,197,94,0.55);
+  }
+
+  #enterButton:active {
+    transform: translateY(1px);
+    box-shadow: 0 3px 8px rgba(34,197,94,0.55);
+  }
+
+  /* Card row */
+  #cardRow {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 2px 0;
+  }
+
+  #cardRowTitle {
+    font-size: 11px;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-right: 4px;
+    white-space: nowrap;
+  }
+
+  .card {
+    position: relative;
+    flex: 0 0 auto;
+    width: 60px;
+    height: 84px;
+    border-radius: 8px;
+    background: radial-gradient(circle at top, #0f172a, #020617);
+    border: 1px solid rgba(148,163,184,0.7);
+    box-shadow: 0 8px 16px rgba(15,23,42,0.9);
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+    transform-origin: center bottom;
+    transition:
+      transform 0.12s ease,
+      box-shadow 0.12s ease,
+      border-color 0.12s ease,
+      background 0.12s ease;
+  }
+
+  .card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(15,23,42,0.9);
+  }
+
+  .card-selected {
+    transform: translateY(-6px) scale(1.08);
+    border-color: rgba(250,204,21,1);
+    box-shadow:
+      0 0 0 2px rgba(250,204,21,0.75),
+      0 14px 26px rgba(250,204,21,0.55);
+    background: radial-gradient(circle at top, #facc15, #0f172a);
+  }
+
+  .card-disabled {
+    opacity: 0.35;
+    cursor: default;
+    box-shadow: none;
+  }
+
+  .card-count {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    padding: 2px 5px;
+    border-radius: 999px;
+    font-size: 10px;
+    background: rgba(15,23,42,0.9);
+    color: #e5e7eb;
+    border: 1px solid rgba(148,163,184,0.8);
+  }
+
+  /* Inventory toggle & panel */
+  #inventoryToggleRow {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 2px;
+  }
+
+  #inventoryToggle {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.7);
+    background: rgba(15,23,42,0.9);
+    color: #e5e7eb;
+    cursor: pointer;
+  }
+
+  #inventoryPanel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.18s ease;
+    margin-top: 2px;
+  }
+
+  #inventoryPanelInner {
+    font-size: 12px;
+    color: #9ca3af;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(55,65,81,0.9);
+  }
+
+  #inventoryPanelInner ul {
+    margin: 4px 0 0 0;
+    padding-left: 16px;
+  }
+
+  #inventoryPanelInner li {
+    margin-bottom: 2px;
+  }
+</style>
+</head>
+<body>
+<div id="outerRoot">
+  <!-- ===== TOP BANNER ===== -->
+  <div id="banner">
+    <div id="banner-left">
+      <div id="banner-title">Outerworld</div>
+      <div id="banner-sub">Tile: <span id="banner-tileName">Home</span></div>
+    </div>
+    <div id="banner-coords">
+      Pos: <span id="banner-coordText">3, 3</span>
+    </div>
+  </div>
+
+  <!-- ===== GRID AREA ===== -->
+  <div id="gridWrapper">
+    <div id="gridSquare">
+      <div id="grid"></div>
+    </div>
+  </div>
+
+  <!-- ===== BOTTOM UI ===== -->
+  <div id="bottomUI">
+    <div id="enterRow">
+      <button id="enterButton">ENTER</button>
+    </div>
+
+    <div id="cardRow">
+      <div id="cardRowTitle">Cards</div>
+      <!-- cards inserted here -->
+    </div>
+
+    <div id="inventoryToggleRow">
+      <button id="inventoryToggle">Inventory ▲</button>
+    </div>
+    <div id="inventoryPanel">
+      <div id="inventoryPanelInner">
+        <div>Cards & resources:</div>
+        <ul id="inventoryList"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// =====================================================
+// DATA MODELS
+// =====================================================
+
+// 5x5 world grid of tiles
+// null = empty
+// { type: "home" | "plains" | "hills" | "forest" }
+const SIZE = 5;
+let world = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+
+// Player starts in center (index 2,2 => shown as 3,3 in UI)
+let playerX = 2;
+let playerY = 2;
+
+// Initialize center as "home" tile
+world[playerY][playerX] = { type: "home" };
+
+// Tile type definitions
+const TILE_TYPES = {
+  home:   { label: "Home",   image: "tile_home.png" },
+  plains: { label: "Plains", image: "tile_plains.png" },
+  hills:  { label: "Hills",  image: "tile_hills.png" },
+  forest: { label: "Forest", image: "tile_forest.png" }
+};
+
+// Cards (consumable)
+let cards = [
+  { type: "plains", label: "Plains", image: "card_plains.png", count: 3 },
+  { type: "hills",  label: "Hills",  image: "card_hills.png",  count: 2 },
+  { type: "forest", label: "Forest", image: "card_forest.png", count: 2 }
+];
+
+// Currently selected card type, or null
+let selectedCardType = null;
+
+// =====================================================
+// DOM REFERENCES
+// =====================================================
+const gridEl            = document.getElementById("grid");
+const bannerTileNameEl  = document.getElementById("banner-tileName");
+const bannerCoordTextEl = document.getElementById("banner-coordText");
+const enterButtonEl     = document.getElementById("enterButton");
+
+const cardRowEl         = document.getElementById("cardRow");
+const inventoryToggleEl = document.getElementById("inventoryToggle");
+const inventoryPanelEl  = document.getElementById("inventoryPanel");
+const inventoryListEl   = document.getElementById("inventoryList");
+
+// =====================================================
+// HELPERS
+// =====================================================
+function inBounds(x, y) {
+  return x >= 0 && x < SIZE && y >= 0 && y < SIZE;
+}
+
+function isAdjacentToPlayer(x, y) {
+  const dx = Math.abs(x - playerX);
+  const dy = Math.abs(y - playerY);
+  // orthogonal adjacency only
+  return (dx + dy === 1);
+}
+
+function getTile(x, y) {
+  if (!inBounds(x, y)) return null;
+  return world[y][x];
+}
+
+function setTile(x, y, type) {
+  if (!inBounds(x, y)) return;
+  world[y][x] = { type };
+}
+
+// Find a card entry by type
+function getCardByType(type) {
+  return cards.find(c => c.type === type);
+}
+
+// Are there any cards of this type left?
+function cardAvailable(type) {
+  const card = getCardByType(type);
+  return card && card.count > 0;
+}
+
+// Adjacent empty tiles we can play a card onto
+function getPlayableTilesForCard(type) {
+  if (!cardAvailable(type)) return [];
+  const coords = [];
+  const dirs = [
+    { dx:  1, dy:  0 },
+    { dx: -1, dy:  0 },
+    { dx:  0, dy:  1 },
+    { dx:  0, dy: -1 }
+  ];
+  for (const {dx, dy} of dirs) {
+    const nx = playerX + dx;
+    const ny = playerY + dy;
+    if (!inBounds(nx, ny)) continue;
+    const tile = getTile(nx, ny);
+    if (tile === null) {
+      coords.push({ x: nx, y: ny });
+    }
+  }
+  return coords;
+}
+
+// =====================================================
+// RENDER: GRID
+// =====================================================
+let tileElements = []; // 2D array of tile DOM references
+
+function initGridDOM() {
+  gridEl.innerHTML = "";
+  tileElements = [];
+  for (let y = 0; y < SIZE; y++) {
+    const row = [];
+    for (let x = 0; x < SIZE; x++) {
+      const tileDiv = document.createElement("div");
+      tileDiv.className = "tile";
+      tileDiv.dataset.x = x;
+      tileDiv.dataset.y = y;
+      tileDiv.addEventListener("click", onTileClick);
+      gridEl.appendChild(tileDiv);
+      row.push(tileDiv);
+    }
+    tileElements.push(row);
+  }
+}
+
+function renderGrid() {
+  const playable = selectedCardType
+    ? getPlayableTilesForCard(selectedCardType).map(c => `${c.x},${c.y}`)
+    : [];
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const tileDiv = tileElements[y][x];
+      const data = world[y][x];
+
+      tileDiv.classList.remove("tile-empty", "tile-player", "tile-highlight-playable");
+      tileDiv.style.backgroundImage = "";
+
+      if (!data) {
+        tileDiv.classList.add("tile-empty");
+      } else {
+        const tdef = TILE_TYPES[data.type];
+        if (tdef && tdef.image) {
+          tileDiv.style.backgroundImage = `url('${tdef.image}')`;
+        } else {
+          tileDiv.classList.add("tile-empty");
+        }
+      }
+
+      if (x === playerX && y === playerY) {
+        tileDiv.classList.add("tile-player");
+      }
+
+      if (playable.includes(`${x},${y}`)) {
+        tileDiv.classList.add("tile-highlight-playable");
+      }
+    }
+  }
+}
+
+// =====================================================
+// RENDER: BANNER & ENTER BUTTON
+// =====================================================
+function updateBanner() {
+  const tile = getTile(playerX, playerY);
+  let label = "Empty";
+  if (tile && TILE_TYPES[tile.type]) {
+    label = TILE_TYPES[tile.type].label;
+  } else if (tile && !TILE_TYPES[tile.type]) {
+    label = tile.type;
+  }
+
+  bannerTileNameEl.textContent = label;
+  bannerCoordTextEl.textContent = `${playerX + 1}, ${playerY + 1}`;
+}
+
+function updateEnterButton() {
+  const tile = getTile(playerX, playerY);
+  if (!tile) {
+    enterButtonEl.style.display = "none";
+    return;
+  }
+  const def = TILE_TYPES[tile.type];
+  const label = def ? def.label : tile.type;
+  enterButtonEl.textContent = `ENTER ${label.toUpperCase()}`;
+  enterButtonEl.style.display = "inline-block";
+}
+
+// Placeholder: hook this into your innerworld later.
+enterButtonEl.addEventListener("click", () => {
+  const tile = getTile(playerX, playerY);
+  if (!tile) return;
+  const def = TILE_TYPES[tile.type];
+  const name = def ? def.label : tile.type;
+  // Replace this with your "go into innerworld" logic:
+  alert(`Entering ${name} tile… (hook this into innerworld)`);
+});
+
+// =====================================================
+// RENDER: CARDS & INVENTORY
+// =====================================================
+let cardElements = [];
+
+function initCardsDOM() {
+  // Remove existing card elements except label
+  const children = Array.from(cardRowEl.children).slice(1); // skip title
+  children.forEach(c => cardRowEl.removeChild(c));
+  cardElements = [];
+
+  for (const card of cards) {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.dataset.type = card.type;
+
+    const img = document.createElement("img");
+    img.src = card.image;
+    img.alt = card.label;
+
+    const countDiv = document.createElement("div");
+    countDiv.className = "card-count";
+
+    div.appendChild(img);
+    div.appendChild(countDiv);
+    div.addEventListener("click", onCardClick);
+
+    cardRowEl.appendChild(div);
+    cardElements.push({ type: card.type, el: div, countEl: countDiv });
+  }
+}
+
+function renderCards() {
+  for (const entry of cardElements) {
+    const cardData = getCardByType(entry.type);
+    const hasAny  = cardData && cardData.count > 0;
+    const isSelected = (selectedCardType === entry.type);
+    entry.countEl.textContent = cardData ? `x${cardData.count}` : "x0";
+
+    entry.el.classList.toggle("card-disabled", !hasAny);
+    entry.el.classList.toggle("card-selected", isSelected);
+  }
+}
+
+function renderInventory() {
+  inventoryListEl.innerHTML = "";
+  for (const card of cards) {
+    const li = document.createElement("li");
+    li.textContent = `${card.label} Card — x${card.count}`;
+    inventoryListEl.appendChild(li);
+  }
+  // Later you can add other resources here too.
+}
+
+// card click: select/deselect
+function onCardClick(e) {
+  const type = e.currentTarget.dataset.type;
+  const card = getCardByType(type);
+  if (!card || card.count <= 0) return;
+
+  if (selectedCardType === type) {
+    selectedCardType = null;
+  } else {
+    selectedCardType = type;
+  }
+
+  renderCards();
+  renderGrid();
+}
+
+// inventory expand/collapse
+let inventoryExpanded = false;
+inventoryToggleEl.addEventListener("click", () => {
+  inventoryExpanded = !inventoryExpanded;
+  if (inventoryExpanded) {
+    inventoryPanelEl.style.maxHeight = "140px";
+    inventoryToggleEl.textContent = "Inventory ▼";
+  } else {
+    inventoryPanelEl.style.maxHeight = "0";
+    inventoryToggleEl.textContent = "Inventory ▲";
+  }
+});
+
+// =====================================================
+// TILE CLICK LOGIC
+// =====================================================
+function onTileClick(e) {
+  const x = parseInt(e.currentTarget.dataset.x, 10);
+  const y = parseInt(e.currentTarget.dataset.y, 10);
+  const tile = getTile(x, y);
+
+  // 1. Card selected & tile is an empty adjacent tile => place card
+  if (selectedCardType) {
+    const playTargets = getPlayableTilesForCard(selectedCardType)
+      .map(c => `${c.x},${c.y}`);
+    const key = `${x},${y}`;
+
+    if (playTargets.includes(key)) {
+      const card = getCardByType(selectedCardType);
+      if (card && card.count > 0) {
+        setTile(x, y, selectedCardType);
+        card.count -= 1;
+
+        if (card.count <= 0) {
+          selectedCardType = null;
+        }
+        renderCards();
+        renderGrid();
+        renderInventory();
+        return;
+      }
+    }
+    // if clicked non-playable tile, just ignore (don’t place or move)
+    return;
+  }
+
+  // 2. No card selected: try to move if adjacent & tile is non-empty
+  if (isAdjacentToPlayer(x, y)) {
+    if (tile !== null) {
+      playerX = x;
+      playerY = y;
+      renderGrid();
+      updateBanner();
+      updateEnterButton();
+    }
+  } else {
+    // 3. (Optional) if clicked your own tile, we could do something extra later
+    // For now, ignore.
+  }
+}
+
+// =====================================================
+// INIT
+// =====================================================
+function init() {
+  initGridDOM();
+  initCardsDOM();
+  renderGrid();
+  renderCards();
+  renderInventory();
+  updateBanner();
+  updateEnterButton();
+}
+
+init();
+</script>
+</body>
+</html>
