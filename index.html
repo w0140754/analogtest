@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>Mobile 2D Game</title>
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Mobile Game</title>
 
 <style>
   html, body {
@@ -15,41 +16,15 @@
     touch-action: none;
   }
 
-  /* wrapper uses full viewport */
-  #wrapper {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  #gameArea {
-    position: relative;
-    width: 100%;
-    /* height: set dynamically in JS */
-    overflow: hidden;
-    background: black;
-  }
-
+  /* FULLSCREEN CANVAS — DOES NOT SHRINK */
   #gameCanvas {
     position: absolute;
-    top: 0;
-    left: 0;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
   }
 
-  #uiBar {
-    width: 100%;
-    /* height set dynamically in JS */
-    background: rgba(30,30,30,0.9);
-    color: white;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-family: sans-serif;
-    border-top: 2px solid rgba(255,255,255,0.15);
-  }
-
+  /* JOYSTICK OVERLAY */
   #joystick {
     position: absolute;
     width: 120px;
@@ -58,6 +33,7 @@
     background: rgba(255,255,255,0.15);
     display: none;
     touch-action: none;
+    z-index: 10;
   }
   #stick {
     position: absolute;
@@ -67,227 +43,256 @@
     background: rgba(255,255,255,0.4);
     left: 30px;
     top: 30px;
+    touch-action: none;
+  }
+
+  /* UI BAR OVERLAY (BOTTOM 10%) */
+  #uiBar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 10vh;                     /* bottom 10% */
+    background: rgba(30,30,30,0.6);    /* semi-transparent */
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: sans-serif;
+    z-index: 20;                       /* above gameplay */
+    backdrop-filter: blur(4px);
+    border-top: 2px solid rgba(255,255,255,0.2);
   }
 </style>
 </head>
-
 <body>
-<div id="wrapper">
-  <div id="gameArea">
-    <canvas id="gameCanvas"></canvas>
-    <div id="joystick"><div id="stick"></div></div>
-  </div>
-  <div id="uiBar">UI BAR</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="joystick">
+  <div id="stick"></div>
+</div>
+
+<div id="uiBar">
+  UI BAR
 </div>
 
 <script>
-// ======================================================
-// LAYOUT FIX (the important part)
-// ======================================================
-
-function applyLayout() {
-  const uiBar = document.getElementById("uiBar");
-  const gameArea = document.getElementById("gameArea");
-  const canvas = document.getElementById("gameCanvas");
-
-  // UI bar = 10% of screen
-  const uiH = Math.floor(window.innerHeight * 0.10);
-  const gameH = window.innerHeight - uiH;
-
-  uiBar.style.height = uiH + "px";
-  gameArea.style.height = gameH + "px";
-
-  // Canvas EXACTLY matches game area
-  canvas.width = gameArea.clientWidth;
-  canvas.height = gameArea.clientHeight;
-}
-
-// Run at startup
-applyLayout();
-
-// Fix delayed mobile viewport behavior
-setTimeout(applyLayout, 100);
-setTimeout(applyLayout, 500);
-
-window.addEventListener("resize", applyLayout);
-
-// ======================================================
-// (Everything below is unchanged gameplay code)
-// ======================================================
-
+// =====================================================
+// CANVAS SETUP — fullscreen, collision-safe
+// =====================================================
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+// =====================================================
+// ASSETS
+// =====================================================
 const bg = new Image();
-bg.src = "background.png";
+bg.src = "background.png";   // 768×768
 
-const collisionImg = new Image();
-collisionImg.src = "collision.png";
-
+// player frames
 const frames = ["player1.png","player2.png","player3.png"].map(src=>{
-  let i=new Image(); i.src=src; return i;
+  let i = new Image();
+  i.src = src;
+  return i;
 });
 
-// Collision map
-const colCanvas=document.createElement("canvas");
-const colCtx=colCanvas.getContext("2d");
-let collisionReady=false;
+// collision map
+const colImg = new Image();
+colImg.src = "collision.png";
 
-collisionImg.onload=()=>{
-  colCanvas.width=collisionImg.width;
-  colCanvas.height=collisionImg.height;
-  colCtx.drawImage(collisionImg,0,0);
-  collisionReady=true;
+const colCanvas = document.createElement("canvas");
+const colCtx = colCanvas.getContext("2d");
+let collisionReady = false;
+
+colImg.onload = () => {
+  colCanvas.width = colImg.width;
+  colCanvas.height = colImg.height;
+  colCtx.drawImage(colImg, 0, 0);
+  collisionReady = true;
 };
 
-function isBlocked(x,y){
-  if(!collisionReady) return false;
-  if(x<0||y<0||x>=colCanvas.width||y>=colCanvas.height) return true;
-  const d=colCtx.getImageData(x,y,1,1).data;
-  return d[0]<50&&d[1]<50&&d[2]<50;
+function isBlocked(px, py) {
+  if (!collisionReady) return false;
+
+  if (px < 0 || py < 0 || px >= colCanvas.width || py >= colCanvas.height)
+    return true;
+
+  const d = colCtx.getImageData(px, py, 1, 1).data;
+  return d[0] < 50 && d[1] < 50 && d[2] < 50;
 }
 
-// Player
-let player={
-  x:500,
-  y:500,
-  speed:180,
-  frame:0,
-  frameTimer:0,
-  scale:0.25,
-  moving:false,
-  facingLeft:false
+// =====================================================
+// PLAYER
+// =====================================================
+let player = {
+  x: 500,
+  y: 500,
+  speed: 180,
+  frame: 0,
+  frameTimer: 0,
+  scale: 0.25,
+  moving: false,
+  facingLeft: false
 };
 
-// Camera
-let camera={x:0,y:0};
+// =====================================================
+// CAMERA
+// =====================================================
+let camera = { x: 0, y: 0 };
 
-function updateCamera(){
-  const w=canvas.width, h=canvas.height;
-  let tx=player.x-w/2;
-  let ty=player.y-h/2;
+function updateCamera() {
+  let tx = player.x - canvas.width / 2;
+  let ty = player.y - canvas.height / 2;
 
-  tx=Math.max(0,Math.min(tx,bg.width-w));
-  ty=Math.max(0,Math.min(ty,bg.height-h));
+  tx = Math.max(0, Math.min(tx, bg.width - canvas.width));
+  ty = Math.max(0, Math.min(ty, bg.height - canvas.height));
 
-  camera.x+=(tx-camera.x)*0.1;
-  camera.y+=(ty-camera.y)*0.1;
+  camera.x += (tx - camera.x) * 0.1;
+  camera.y += (ty - camera.y) * 0.1;
 }
 
-// Joystick
-const joyDiv=document.getElementById("joystick");
-const stick=document.getElementById("stick");
+// =====================================================
+// JOYSTICK
+// =====================================================
+const joyDiv = document.getElementById("joystick");
+const stick = document.getElementById("stick");
 
-let joy={active:false,dx:0,dy:0,originX:0,originY:0};
+let joy = {
+  active: false,
+  dx: 0, dy: 0,
+  originX: 0,
+  originY: 0
+};
 
-canvas.addEventListener("touchstart",e=>{
-  const t=e.touches[0];
-  joy.active=true;
-  joy.originX=t.clientX;
-  joy.originY=t.clientY;
-  joyDiv.style.left=(t.clientX-60)+"px";
-  joyDiv.style.top=(t.clientY-60)+"px";
-  joyDiv.style.display="block";
-  stick.style.left="30px";
-  stick.style.top="30px";
+canvas.addEventListener("touchstart", e => {
+  const t = e.touches[0];
+  joy.active = true;
+  joy.originX = t.clientX;
+  joy.originY = t.clientY;
+
+  joyDiv.style.left = (t.clientX - 60) + "px";
+  joyDiv.style.top = (t.clientY - 60) + "px";
+  joyDiv.style.display = "block";
+  stick.style.left = "30px";
+  stick.style.top = "30px";
 });
 
-canvas.addEventListener("touchmove",e=>{
-  if(!joy.active) return;
-  const t=e.touches[0];
-  let dx=t.clientX-joy.originX;
-  let dy=t.clientY-joy.originY;
-  const dist=Math.hypot(dx,dy);
-  const max=40;
-  if(dist>max){ dx=(dx/dist)*max; dy=(dy/dist)*max }
+canvas.addEventListener("touchmove", e => {
+  if (!joy.active) return;
+  const t = e.touches[0];
+  let dx = t.clientX - joy.originX;
+  let dy = t.clientY - joy.originY;
 
-  stick.style.left=(30+dx)+"px";
-  stick.style.top=(30+dy)+"px";
+  const dist = Math.hypot(dx, dy);
+  const max = 40;
 
-  joy.dx=dx/max;
-  joy.dy=dy/max;
+  if (dist > max) {
+    dx = dx / dist * max;
+    dy = dy / dist * max;
+  }
+
+  stick.style.left = (30 + dx) + "px";
+  stick.style.top = (30 + dy) + "px";
+
+  joy.dx = dx / max;
+  joy.dy = dy / max;
 });
 
-canvas.addEventListener("touchend",()=>{
-  joy.active=false;
-  joy.dx=joy.dy=0;
-  joyDiv.style.display="none";
+canvas.addEventListener("touchend", () => {
+  joy.active = false;
+  joy.dx = joy.dy = 0;
+  joyDiv.style.display = "none";
 });
 
-// MAIN LOOP
-let last=0;
-function loop(t){
-  const dt=(t-last)/1000;
-  last=t;
+// =====================================================
+// GAME LOOP
+// =====================================================
+let last = 0;
+
+function loop(t) {
+  const dt = (t - last) / 1000;
+  last = t;
+
   update(dt);
   draw();
+
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
+// =====================================================
 // UPDATE
-function update(dt){
-  player.moving=Math.abs(joy.dx)>0.05||Math.abs(joy.dy)>0.05;
+// =====================================================
+function update(dt) {
+  player.moving = Math.abs(joy.dx) > 0.05 || Math.abs(joy.dy) > 0.05;
 
-  if(player.moving){
-    let nx=player.x+joy.dx*player.speed*dt;
-    let ny=player.y+joy.dy*player.speed*dt;
+  if (player.moving) {
+    let nx = player.x + joy.dx * player.speed * dt;
+    let ny = player.y + joy.dy * player.speed * dt;
 
-    if(!isBlocked(nx,player.y)) player.x=nx;
-    if(!isBlocked(player.x,ny)) player.y=ny;
+    if (!isBlocked(nx, player.y)) player.x = nx;
+    if (!isBlocked(player.x, ny)) player.y = ny;
   }
 
-  if(joy.dx<-0.05) player.facingLeft=true;
-  else if(joy.dx>0.05) player.facingLeft=false;
+  // face direction
+  if (joy.dx < -0.05) player.facingLeft = true;
+  else if (joy.dx > 0.05) player.facingLeft = false;
 
-  if(player.moving){
-    player.frameTimer+=dt;
-    if(player.frameTimer>0.15){
-      player.frame=(player.frame+1)%3;
-      player.frameTimer=0;
+  // animate
+  if (player.moving) {
+    player.frameTimer += dt;
+    if (player.frameTimer > 0.15) {
+      player.frame = (player.frame + 1) % 3;
+      player.frameTimer = 0;
     }
-  } else player.frame=0;
+  } else {
+    player.frame = 0;
+  }
 
   updateCamera();
 }
 
+// =====================================================
 // DRAW
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+// =====================================================
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  if(bg.width>0){
-   // Pixel-perfect drawing (no scaling)
-// Show only the portion of the world that fits inside the canvas.
-ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = false;
 
-ctx.drawImage(
-  bg,
-  Math.floor(camera.x),            // source x
-  Math.floor(camera.y),            // source y
-  Math.floor(canvas.width),        // width to crop from bg
-  Math.floor(canvas.height),       // height to crop from bg
-  0,                               // dest x
-  0,                               // dest y
-  canvas.width,                    // dest width (same)
-  canvas.height                    // dest height (same)
-);
-
+  if (bg.width > 0) {
+    ctx.drawImage(
+      bg,
+      Math.floor(camera.x), Math.floor(camera.y),
+      canvas.width, canvas.height,
+      0, 0,
+      canvas.width, canvas.height
+    );
   }
 
-  const img=frames[player.frame];
-  const w=img.width*player.scale;
-  const h=img.height*player.scale;
-  const dx=player.x-camera.x-w/2;
-  const dy=player.y-camera.y-h/2;
+  const img = frames[player.frame];
+  const w = img.width * player.scale;
+  const h = img.height * player.scale;
 
-  if(player.facingLeft){
+  const dx = player.x - camera.x - w/2;
+  const dy = player.y - camera.y - h/2;
+
+  if (player.facingLeft) {
     ctx.save();
-    ctx.translate(dx+w/2,dy+h/2);
-    ctx.scale(-1,1);
-    ctx.drawImage(img,-w/2,-h/2,w,h);
+    ctx.translate(dx + w/2, dy + h/2);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, -w/2, -h/2, w, h);
     ctx.restore();
   } else {
-    ctx.drawImage(img,dx,dy,w,h);
+    ctx.drawImage(img, dx, dy, w, h);
   }
 }
 </script>
