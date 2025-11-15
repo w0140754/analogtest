@@ -3,107 +3,131 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>Mobile 2D Test + UI Bar</title>
+<title>Mobile 2D Game</title>
+
 <style>
   html, body {
     margin: 0; padding: 0;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
     background: black;
     touch-action: none;
   }
 
-  /* GAME CANVAS (now 90% height) */
-  #gameCanvas {
-    position: absolute;
-    top: 0;
-    left: 0;
+  /* Main vertical layout: game area on top, UI bar on bottom */
+  #wrapper {
     width: 100vw;
-    height: 90vh;   /* ★ gameplay only uses top 90% */
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
 
-  /* UI BAR (fixed bottom area) */
+  /* GAME AREA (TOP 90%) */
+  #gameArea {
+    position: relative;
+    width: 100%;
+    height: 90%;
+    overflow: hidden;
+    background: black;
+  }
+
+  #gameCanvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* UI AREA (BOTTOM 10%) */
   #uiBar {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100vw;
-    height: 10vh;   /* ★ bottom 10% reserved for UI */
-    background: rgba(30, 30, 30, 0.75);
-    backdrop-filter: blur(5px);
+    width: 100%;
+    height: 10%;
+    background: rgba(30,30,30,0.9);
     border-top: 2px solid rgba(255,255,255,0.15);
-    display: flex;
-    justify-content: center;
-    align-items: center;
     color: white;
     font-family: sans-serif;
     font-size: 2.2vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 
   /* JOYSTICK */
   #joystick {
     position: absolute;
-    width: 120px; height: 120px;
+    width: 120px;
+    height: 120px;
     border-radius: 50%;
     background: rgba(255,255,255,0.15);
     display: none;
     touch-action: none;
   }
-
   #stick {
     position: absolute;
-    width: 60px; height: 60px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
     background: rgba(255,255,255,0.4);
-    left: 30px; top: 30px;
+    left: 30px;
+    top: 30px;
+    touch-action: none;
   }
 </style>
 </head>
 <body>
 
-<!-- GAME CANVAS (top 90%) -->
-<canvas id="gameCanvas"></canvas>
+<div id="wrapper">
 
-<!-- UI BAR (bottom 10%) -->
-<div id="uiBar">
-  UI BAR — buttons go here
+  <!-- GAMEPLAY AREA -->
+  <div id="gameArea">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Joystick inside game area -->
+    <div id="joystick">
+      <div id="stick"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM UI BAR -->
+  <div id="uiBar">
+    UI BAR — add your buttons here
+  </div>
+
 </div>
 
-<!-- JOYSTICK -->
-<div id="joystick"><div id="stick"></div></div>
-
 <script>
-// ==========================================
-// CANVAS ADJUSTMENT
-// ==========================================
+// =====================================================
+// CANVAS
+// =====================================================
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight * 0.90;  // ★ TOP 90%
+function resizeCanvas() {
+  const area = document.getElementById("gameArea");
+  canvas.width = area.clientWidth;
+  canvas.height = area.clientHeight;
 }
-resize();
-window.addEventListener("resize", resize);
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
 
-// ==========================================
+// =====================================================
 // ASSETS
-// ==========================================
+// =====================================================
 const bg = new Image();
-bg.src = "background.png";
+bg.src = "background.png";  // your world map
 
 const collisionImg = new Image();
-collisionImg.src = "collision.png";
+collisionImg.src = "collision.png"; // black = solid
 
-// Player sprites
+// Player animation frames
 const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
   const img = new Image();
   img.src = src;
   return img;
 });
 
-// ==========================================
-// COLLISION MAP
-// ==========================================
+// =====================================================
+// COLLISION MAP (offscreen canvas)
+// =====================================================
 const colCanvas = document.createElement("canvas");
 const colCtx = colCanvas.getContext("2d");
 let collisionReady = false;
@@ -115,20 +139,22 @@ collisionImg.onload = () => {
   collisionReady = true;
 };
 
+// Check if pixel is solid
 function isBlocked(px, py) {
   if (!collisionReady) return false;
-  if (px < 0 || py < 0 || px >= colCanvas.width || py >= colCanvas.height) return true;
+  if (px < 0 || py < 0 || px >= colCanvas.width || py >= colCanvas.height)
+      return true;
 
-  const data = colCtx.getImageData(px, py, 1, 1).data;
-  return data[0] < 50 && data[1] < 50 && data[2] < 50;
+  const d = colCtx.getImageData(px, py, 1, 1).data;
+  return (d[0] < 50 && d[1] < 50 && d[2] < 50);  // black = solid
 }
 
-// ==========================================
+// =====================================================
 // PLAYER
-// ==========================================
+// =====================================================
 let player = {
-  x: 500,
-  y: 500,
+  x: 800,
+  y: 800,
   speed: 180,
   frame: 0,
   frameTimer: 0,
@@ -137,28 +163,28 @@ let player = {
   moving: false
 };
 
-// ==========================================
+// =====================================================
 // CAMERA
-// ==========================================
+// =====================================================
 let camera = { x: 0, y: 0 };
 
 function updateCamera() {
-  const cw = canvas.width;
-  const ch = canvas.height;
+  const w = canvas.width;
+  const h = canvas.height;
 
-  let targetX = player.x - cw / 2;
-  let targetY = player.y - ch / 2;
+  let targetX = player.x - w / 2;
+  let targetY = player.y - h / 2;
 
-  targetX = Math.max(0, Math.min(targetX, bg.width - cw));
-  targetY = Math.max(0, Math.min(targetY, bg.height - ch));
+  targetX = Math.max(0, Math.min(targetX, bg.width - w));
+  targetY = Math.max(0, Math.min(targetY, bg.height - h));
 
   camera.x += (targetX - camera.x) * 0.1;
   camera.y += (targetY - camera.y) * 0.1;
 }
 
-// ==========================================
+// =====================================================
 // JOYSTICK
-// ==========================================
+// =====================================================
 const joyDiv = document.getElementById("joystick");
 const stick = document.getElementById("stick");
 
@@ -168,6 +194,7 @@ let joy = {
   originX: 0, originY: 0
 };
 
+// Touch start
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
   joy.active = true;
@@ -183,10 +210,11 @@ canvas.addEventListener("touchstart", e => {
   stick.style.top = "30px";
 });
 
+// Touch move
 canvas.addEventListener("touchmove", e => {
   if (!joy.active) return;
-  const t = e.touches[0];
 
+  const t = e.touches[0];
   const dx = t.clientX - joy.originX;
   const dy = t.clientY - joy.originY;
 
@@ -206,26 +234,32 @@ canvas.addEventListener("touchmove", e => {
   joy.dy = ndy / max;
 });
 
-canvas.addEventListener("touchend", e => {
+// Touch end
+canvas.addEventListener("touchend", () => {
   joy.active = false;
   joy.dx = joy.dy = 0;
   joyDiv.style.display = "none";
 });
 
-// ==========================================
+// =====================================================
 // GAME LOOP
-// ==========================================
-let last = 0;
-function loop(t) {
-  const dt = (t - last) / 1000;
-  last = t;
+// =====================================================
+let lastTime = 0;
+
+function gameLoop(t) {
+  const dt = (t - lastTime) / 1000;
+  lastTime = t;
 
   update(dt);
   draw();
-  requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
 
+  requestAnimationFrame(gameLoop);
+}
+requestAnimationFrame(gameLoop);
+
+// =====================================================
+// UPDATE
+// =====================================================
 function update(dt) {
   player.moving = Math.abs(joy.dx) > 0.05 || Math.abs(joy.dy) > 0.05;
 
@@ -247,18 +281,19 @@ function update(dt) {
       player.frameTimer = 0;
     }
   } else {
-    player.frame = 0;
+    player.frame = 0; // idle frame
   }
 
   updateCamera();
 }
 
-// ==========================================
+// =====================================================
 // DRAW
-// ==========================================
+// =====================================================
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // Draw world
   if (bg.width > 0) {
     ctx.drawImage(
       bg,
@@ -269,6 +304,7 @@ function draw() {
     );
   }
 
+  // Player
   const img = frames[player.frame];
   const w = img.width * player.scale;
   const h = img.height * player.scale;
