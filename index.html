@@ -19,7 +19,7 @@
     touch-action: none;
   }
 
-  /* GAME CANVAS — area above UI */
+  /* GAME CANVAS — area above bottom button region */
   #gameCanvas {
     position: fixed;
     top: 0;
@@ -29,42 +29,31 @@
     display: block;
   }
 
-  /* UI BAR — fixed at bottom */
-  #uiBar {
+  /* Floating bottom UI buttons (no bar) */
+  #uiButtons {
     position: fixed;
-    bottom: env(safe-area-inset-bottom);
-    left: 0;
-    width: 100vw;
-    height: calc(10vh + env(safe-area-inset-bottom));
-
-    background: rgba(20,20,20,0.78);
-    backdrop-filter: blur(5px);
-    border-top: 1px solid rgba(255,255,255,0.15);
-
+    bottom: calc(1.5vh + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     justify-content: center;
     align-items: center;
-
-    color: white;
-    font-family: sans-serif;
-    font-size: 2.2vh;
     gap: 1.5vh;
     z-index: 9999;
+    pointer-events: none; /* we’ll enable on children only */
+    font-family: sans-serif;
+    font-size: 2.2vh;
+    color: white;
   }
 
   #defaultUI {
     white-space: nowrap;
+    pointer-events: auto;
   }
 
   /* Buttons */
-  #harvestButton,
-  #fightButton,
-  #runButton,
-  #hitButton,
-  #smackButton,
-  #punchButton,
-  #kickButton {
-    background: rgba(255,200,150,0.9);
+  .ui-btn {
+    background: rgba(255,200,150,0.95);
     padding: 1vh 2.4vh;
     border-radius: 1vh;
     font-size: 2.2vh;
@@ -73,6 +62,7 @@
     color: black;
     display: none;
     white-space: nowrap;
+    pointer-events: auto;
   }
 
   #fightButton {
@@ -125,21 +115,21 @@
 <!-- GAME AREA -->
 <canvas id="gameCanvas"></canvas>
 
-<!-- UI BAR -->
-<div id="uiBar">
-  <div id="defaultUI">UI BAR — buttons go here</div>
+<!-- FLOATING BOTTOM UI BUTTONS -->
+<div id="uiButtons">
+  <div id="defaultUI">UI — walk up to something…</div>
 
-  <button id="harvestButton">HARVEST BLOSSOM</button>
+  <button id="harvestButton" class="ui-btn">HARVEST BLOSSOM</button>
 
   <!-- Monster choice -->
-  <button id="fightButton">FIGHT</button>
-  <button id="runButton">RUN</button>
+  <button id="fightButton" class="ui-btn">FIGHT</button>
+  <button id="runButton"   class="ui-btn">RUN</button>
 
   <!-- Battle buttons -->
-  <button id="hitButton">HIT</button>
-  <button id="smackButton">SMACK</button>
-  <button id="punchButton">PUNCH</button>
-  <button id="kickButton">KICK</button>
+  <button id="hitButton"   class="ui-btn">HIT</button>
+  <button id="smackButton" class="ui-btn">SMACK</button>
+  <button id="punchButton" class="ui-btn">PUNCH</button>
+  <button id="kickButton"  class="ui-btn">KICK</button>
 </div>
 
 <!-- JOYSTICK -->
@@ -247,8 +237,7 @@ let player = {
 
   hpMax: 20,
   hp: 20,
-  hitFlash: 0,     // red flash when taking damage
-  attackFlash: 0,  // white-ish flash when attacking
+  hitFlash: 0,    // red flash timer when taking damage
   lungeOffsetX: 0,
   lungeOffsetY: 0
 };
@@ -341,7 +330,7 @@ let items = [
 ];
 
 // =====================================================
-// MONSTER (stationary starwolf with HP and animations)
+// MONSTER
 // =====================================================
 let monster = {
   x: 300,
@@ -352,8 +341,9 @@ let monster = {
   scale: 0.30,
   state: "idle",       // "idle" or "dying"
   fadeAlpha: 1,
-  attackFlash: 0,      // seconds to show attack sprite
-  hurtFlash: 0,        // brief hurt sprite
+
+  attackFlash: 0,      // unused sprite-switch now, but kept for timing
+  hitFlash: 0,         // red flash timer when taking damage
   lungeOffsetX: 0,
   lungeOffsetY: 0
 };
@@ -406,7 +396,6 @@ function setUIMode(mode) {
 
 setUIMode("default");
 
-// movement lock during battle or teleport
 function movementLocked() {
   return battleMode || runTeleportInProgress;
 }
@@ -421,6 +410,13 @@ harvestBtn.addEventListener("click", () => {
 // =====================================================
 // BATTLE & RUN ACTIONS
 // =====================================================
+function resetLunges() {
+  player.lungeOffsetX = 0;
+  player.lungeOffsetY = 0;
+  monster.lungeOffsetX = 0;
+  monster.lungeOffsetY = 0;
+}
+
 fightBtn.addEventListener("click", () => {
   if (!monster.alive) return;
   battleMode = true;
@@ -436,13 +432,6 @@ runBtn.addEventListener("click", () => {
   resetLunges();
   startRunTeleport();
 });
-
-function resetLunges() {
-  player.lungeOffsetX = 0;
-  player.lungeOffsetY = 0;
-  monster.lungeOffsetX = 0;
-  monster.lungeOffsetY = 0;
-}
 
 // Monster counter-attack (called after delay)
 function performMonsterCounterAttack() {
@@ -460,12 +449,10 @@ function performMonsterCounterAttack() {
   monster.lungeOffsetX = (dx / len) * LUNGE_DIST;
   monster.lungeOffsetY = (dy / len) * LUNGE_DIST;
 
-  monster.attackFlash = 0.2; // show attack sprite briefly
-
   const MONSTER_DAMAGE = 2;
   player.hp -= MONSTER_DAMAGE;
   if (player.hp < 0) player.hp = 0;
-  player.hitFlash = 0.2; // red flash
+  player.hitFlash = 0.18; // red flash on player
 
   // If player "dies", teleport them like a forced RUN and restore HP
   if (player.hp <= 0) {
@@ -477,11 +464,11 @@ function performMonsterCounterAttack() {
       player.hp = player.hpMax;
     });
   } else {
-    // Monster returns to idle after attack
+    // Monster recovers from lunge
     setTimeout(() => {
-      monster.attackFlash = 0;
-      resetLunges();
-      // End of monster's turn: player can act again if still in battle
+      monster.lungeOffsetX = 0;
+      monster.lungeOffsetY = 0;
+      // End of monster's turn: player can act again
       if (battleMode) {
         battleBusy = false;
         setUIMode("battle");
@@ -490,14 +477,14 @@ function performMonsterCounterAttack() {
   }
 }
 
-// Attack button helper (player's turn)
+// Player attack (turn-based)
 function performAttack(damage) {
   if (!battleMode || !monster.alive || battleBusy) return;
 
   battleBusy = true;
-  setUIMode("battle"); // ensure only battle buttons visible
+  setUIMode("battle"); // keep only battle buttons visible
 
-  // Player lunges 15px toward monster and flashes
+  // Player lunges 15px toward monster
   const dx = monster.x - player.x;
   const dy = monster.y - player.y;
   const len = Math.hypot(dx, dy) || 1;
@@ -505,12 +492,11 @@ function performAttack(damage) {
 
   player.lungeOffsetX = (dx / len) * LUNGE_DIST;
   player.lungeOffsetY = (dy / len) * LUNGE_DIST;
-  player.attackFlash = 0.15;
 
-  // Apply damage to monster immediately
+  // Apply damage to monster
   monster.hp -= damage;
   if (monster.hp < 0) monster.hp = 0;
-  monster.hurtFlash = 0.15;
+  monster.hitFlash = 0.18; // red flash on monster
 
   // Check for monster death
   if (monster.hp <= 0) {
@@ -520,7 +506,7 @@ function performAttack(damage) {
       monster.state = "dying";
       monster.fadeAlpha = 1;
     }
-    // End battle after brief delay so hurt anim shows
+    // End battle after brief moment so flash shows
     setTimeout(() => {
       battleMode = false;
       battleBusy = false;
@@ -530,22 +516,21 @@ function performAttack(damage) {
     return;
   }
 
-  // After player attack animation, reset lunge and schedule monster counter
+  // After short time, remove player lunge + monster flash
   setTimeout(() => {
     player.lungeOffsetX = 0;
     player.lungeOffsetY = 0;
-    player.attackFlash = 0;
-    monster.hurtFlash = 0;
+    monster.hitFlash = 0;
 
     if (!battleMode || !monster.alive) {
       battleBusy = false;
       return;
     }
 
-    // Small delay before monster counter-attacks
+    // Delay before monster counter-attacks (slightly longer for readability)
     setTimeout(() => {
       performMonsterCounterAttack();
-    }, 200);
+    }, 500);
   }, 180);
 }
 
@@ -642,37 +627,29 @@ function update(dt) {
     else if (joy.dx > 0.05) player.facingLeft = false;
   }
 
-  // Player flashes & lunges decay
+  // Damage flash timers
   if (player.hitFlash > 0) {
     player.hitFlash -= dt;
     if (player.hitFlash < 0) player.hitFlash = 0;
   }
-  if (player.attackFlash > 0) {
-    player.attackFlash -= dt;
-    if (player.attackFlash < 0) player.attackFlash = 0;
+
+  if (monster.hitFlash > 0) {
+    monster.hitFlash -= dt;
+    if (monster.hitFlash < 0) monster.hitFlash = 0;
   }
 
-  player.lungeOffsetX *= 0.85;
-  player.lungeOffsetY *= 0.85;
-  if (Math.abs(player.lungeOffsetX) < 0.01) player.lungeOffsetX = 0;
-  if (Math.abs(player.lungeOffsetY) < 0.01) player.lungeOffsetY = 0;
-
-  // Monster animation timers
-  if (monster.attackFlash > 0) {
-    monster.attackFlash -= dt;
-    if (monster.attackFlash < 0) monster.attackFlash = 0;
-  }
-  if (monster.hurtFlash > 0) {
-    monster.hurtFlash -= dt;
-    if (monster.hurtFlash < 0) monster.hurtFlash = 0;
-  }
-
+  // Monster fade-out when dying
   if (!monster.alive && monster.state === "dying") {
     monster.fadeAlpha -= dt * 1.8; // fade over ~0.55s
     if (monster.fadeAlpha < 0) monster.fadeAlpha = 0;
   }
 
-  // Monster lunge offset decay
+  // Lunge offset decay (just in case anything lingers)
+  player.lungeOffsetX *= 0.85;
+  player.lungeOffsetY *= 0.85;
+  if (Math.abs(player.lungeOffsetX) < 0.01) player.lungeOffsetX = 0;
+  if (Math.abs(player.lungeOffsetY) < 0.01) player.lungeOffsetY = 0;
+
   monster.lungeOffsetX *= 0.85;
   monster.lungeOffsetY *= 0.85;
   if (Math.abs(monster.lungeOffsetX) < 0.01) monster.lungeOffsetX = 0;
@@ -715,40 +692,61 @@ function update(dt) {
 }
 
 // =====================================================
-// DRAW
+// DRAW HELPERS
 // =====================================================
-function drawHPBubble(worldX, worldY, hp, hpMax) {
+function drawHPBubbleOval(worldX, worldY, hp, hpMax) {
   const screenX = worldX - camera.x;
   const screenY = worldY - camera.y;
 
   const text = `♥ ${hp}/${hpMax}`;
+  ctx.save();
   ctx.font = "12px sans-serif";
   ctx.textBaseline = "middle";
-  ctx.textAlign = "left";
+  ctx.textAlign = "center";
 
   const paddingX = 6;
   const paddingY = 4;
-  const metrics = ctx.measureText(text);
-  const w = metrics.width + paddingX * 2;
+  const textWidth = ctx.measureText(text).width;
+  const w = textWidth + paddingX * 2;
   const h = 18;
 
-  const x = screenX - w / 2;
-  const y = screenY - h;
+  const cx = screenX;
+  const cy = screenY;
 
-  ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-  ctx.strokeStyle = "rgba(255,255,255,0.8)";
-  ctx.lineWidth = 1;
+  const rx = w / 2;
+  const ry = h / 2;
+
+  // Drop shadow ellipse
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
   ctx.beginPath();
-  ctx.rect(x, y, w, h);
+  ctx.ellipse(cx, cy + 2, rx, ry, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.stroke();
 
-  ctx.fillStyle = "#ffb3c1";
-  ctx.fillText(text, x + paddingX, y + h / 2);
+  // White oval
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Text inside
+  ctx.fillStyle = "black";
+  ctx.fillText(text, cx, cy);
+
   ctx.restore();
 }
 
+// Draw a red sprite-sized flash overlay on given rect
+function drawHitFlashRect(x, y, w, h, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "red";
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
+}
+
+// =====================================================
+// DRAW
+// =====================================================
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -778,14 +776,11 @@ function draw() {
   }
 
   // Monster
+  let monsterDrawn = false;
   if (monster.alive || (monster.state === "dying" && monster.fadeAlpha > 0)) {
     let mImg = monsterIdleImg;
     if (monster.state === "dying") {
       mImg = monsterHurtImg;
-    } else if (monster.hurtFlash > 0) {
-      mImg = monsterHurtImg;
-    } else if (monster.attackFlash > 0) {
-      mImg = monsterAttackImg;
     }
 
     const mScale = monster.scale;
@@ -801,9 +796,17 @@ function draw() {
     ctx.drawImage(mImg, mx, my, mw, mh);
     ctx.restore();
 
-    // Monster HP bubble only during battle
+    monsterDrawn = true;
+
+    // Red hit flash on monster if taking damage
+    if (monster.hitFlash > 0) {
+      const alpha = (monster.hitFlash / 0.18) * 0.18; // subtle
+      drawHitFlashRect(mx, my, mw, mh, alpha);
+    }
+
+    // Monster HP bubble only during battle and while alive
     if (battleMode && monster.alive) {
-      drawHPBubble(monster.x, monster.y - 60, monster.hp, monster.hpMax);
+      drawHPBubbleOval(monster.x, monster.y - 60, monster.hp, monster.hpMax);
     }
   }
 
@@ -827,35 +830,15 @@ function draw() {
     ctx.drawImage(img, drawX, drawY, w, h);
   }
 
-  // Player flashes (attack + hit)
-  const cx = worldPX - camera.x;
-  const cy = worldPY - camera.y;
-
-  if (player.attackFlash > 0) {
-    const alpha = (player.attackFlash / 0.15) * 0.4;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = "white";
-    ctx.beginPath();
-    ctx.ellipse(cx, cy - h * 0.15, w * 0.6, h * 0.8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
+  // Red hit flash on player
   if (player.hitFlash > 0) {
-    const alpha = (player.hitFlash / 0.2) * 0.5;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = "red";
-    ctx.beginPath();
-    ctx.ellipse(cx, cy - h * 0.15, w * 0.6, h * 0.8, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    const alpha = (player.hitFlash / 0.18) * 0.18; // subtle
+    drawHitFlashRect(drawX, drawY, w, h, alpha);
   }
 
   // Player HP bubble only during battle
   if (battleMode) {
-    drawHPBubble(player.x, player.y - 60, player.hp, player.hpMax);
+    drawHPBubbleOval(player.x, player.y - 60, player.hp, player.hpMax);
   }
 
   // Debug Hitbox
