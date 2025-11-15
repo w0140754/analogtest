@@ -256,10 +256,22 @@ function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
   if(bg.width>0){
-    ctx.drawImage(bg,
-      camera.x,camera.y,
-      canvas.width,canvas.height,
-      0,0,canvas.width,canvas.height);
+   // Pixel-perfect drawing (no scaling)
+// Show only the portion of the world that fits inside the canvas.
+ctx.imageSmoothingEnabled = false;
+
+ctx.drawImage(
+  bg,
+  Math.floor(camera.x),            // source x
+  Math.floor(camera.y),            // source y
+  Math.floor(canvas.width),        // width to crop from bg
+  Math.floor(canvas.height),       // height to crop from bg
+  0,                               // dest x
+  0,                               // dest y
+  canvas.width,                    // dest width (same)
+  canvas.height                    // dest height (same)
+);
+
   }
 
   const img=frames[player.frame];
