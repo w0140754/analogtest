@@ -69,10 +69,11 @@ window.addEventListener("resize", resize);
 const bg = new Image();
 bg.src = "background.png";
 
+// 3-frame animation + idle pose (frame 0)
 const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
-  const i = new Image();
-  i.src = src;
-  return i;
+  const img = new Image();
+  img.src = src;
+  return img;
 });
 
 // ==========================================
@@ -84,27 +85,26 @@ let player = {
   speed: 200,
   frame: 0,
   frameTimer: 0,
-  scale: 0.25  // smaller now
+  scale: 0.25,
+  facingLeft: false,
+  moving: false
 };
 
 // ==========================================
-// CAMERA (soft follow)
+// CAMERA
 // ==========================================
 let camera = { x: 0, y: 0 };
 
 function updateCamera() {
-  const camW = canvas.width;
-  const camH = canvas.height;
+  const cw = canvas.width;
+  const ch = canvas.height;
 
-  // The camera tries to center the player...
-  let targetX = player.x - camW / 2;
-  let targetY = player.y - camH / 2;
+  let targetX = player.x - cw / 2;
+  let targetY = player.y - ch / 2;
 
-  // ...but clamps within the world bounds
-  targetX = Math.max(0, Math.min(targetX, bg.width - camW));
-  targetY = Math.max(0, Math.min(targetY, bg.height - camH));
+  targetX = Math.max(0, Math.min(targetX, bg.width - cw));
+  targetY = Math.max(0, Math.min(targetY, bg.height - ch));
 
-  // Smooth camera motion (feel free to tune 0.1 → faster / slower follow)
   camera.x += (targetX - camera.x) * 0.1;
   camera.y += (targetY - camera.y) * 0.1;
 }
@@ -123,11 +123,9 @@ let joy = {
   originY: 0
 };
 
-// Touch starts joystick
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
   joy.active = true;
-
   joy.originX = t.clientX;
   joy.originY = t.clientY;
 
@@ -139,7 +137,6 @@ canvas.addEventListener("touchstart", e => {
   stick.style.top = "30px";
 });
 
-// Move joystick
 canvas.addEventListener("touchmove", e => {
   if (!joy.active) return;
 
@@ -165,7 +162,6 @@ canvas.addEventListener("touchmove", e => {
   joy.dy = ndy / max;
 });
 
-// Lift finger = hide joystick
 canvas.addEventListener("touchend", () => {
   joy.active = false;
   joy.dx = joy.dy = 0;
@@ -173,7 +169,7 @@ canvas.addEventListener("touchend", () => {
 });
 
 // ==========================================
-// MAIN LOOP
+// GAME LOOP
 // ==========================================
 let last = 0;
 function loop(t) {
@@ -188,21 +184,35 @@ function loop(t) {
 requestAnimationFrame(loop);
 
 function update(dt) {
-  // Move player
-  player.x += joy.dx * player.speed * dt;
-  player.y += joy.dy * player.speed * dt;
+  // Determine if player is moving
+  player.moving = Math.abs(joy.dx) > 0.05 || Math.abs(joy.dy) > 0.05;
 
-  // Clamp player inside world
+  // Move player
+  if (player.moving) {
+    player.x += joy.dx * player.speed * dt;
+    player.y += joy.dy * player.speed * dt;
+  }
+
+  // Determine facing direction
+  if (joy.dx < -0.05) player.facingLeft = true;
+  else if (joy.dx > 0.05) player.facingLeft = false;
+
+  // Clamp player to world
   if (bg.width > 0) {
     player.x = Math.max(0, Math.min(player.x, bg.width));
     player.y = Math.max(0, Math.min(player.y, bg.height));
   }
 
-  // Animate
-  player.frameTimer += dt;
-  if (player.frameTimer > 0.2) {
-    player.frame = (player.frame + 1) % frames.length;
-    player.frameTimer = 0;
+  // Animation (only if moving)
+  if (player.moving) {
+    player.frameTimer += dt;
+    if (player.frameTimer > 0.15) {
+      player.frame = (player.frame + 1) % 3; // cycle 1-2-3
+      player.frameTimer = 0;
+    }
+  } else {
+    // Idle pose = frame 0
+    player.frame = 0;
   }
 
   updateCamera();
@@ -214,7 +224,7 @@ function update(dt) {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Draw section of world image
+  // Draw visible world
   if (bg.width > 0) {
     ctx.drawImage(
       bg,
@@ -225,18 +235,24 @@ function draw() {
     );
   }
 
-  // Draw player relative to camera
+  // Draw player (with flip if facing left)
   const img = frames[player.frame];
   if (img.width > 0) {
     const w = img.width * player.scale;
     const h = img.height * player.scale;
 
-    ctx.drawImage(
-      img,
-      player.x - camera.x - w / 2,
-      player.y - camera.y - h / 2,
-      w, h
-    );
+    const drawX = player.x - camera.x - w / 2;
+    const drawY = player.y - camera.y - h / 2;
+
+    if (player.facingLeft) {
+      ctx.save();
+      ctx.translate(drawX + w/2, drawY + h/2);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, -w/2, -h/2, w, h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(img, drawX, drawY, w, h);
+    }
   }
 }
 </script>
