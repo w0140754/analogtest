@@ -3,244 +3,218 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>Pixel Perfect Collision Test</title>
-
+<title>Mobile 2D Test + UI Bar</title>
 <style>
   html, body {
-    margin: 0;
-    padding: 0;
+    margin: 0; padding: 0;
     overflow: hidden;
     background: black;
     touch-action: none;
   }
 
-  /* The game canvas is a fixed 768×768 world.
-     We scale it with CSS transform to fit the screen. */
+  /* GAME CANVAS (now 90% height) */
   #gameCanvas {
-    position: fixed;
-    left: 50%;
-    top: 50%;
-    transform-origin: top left;
-    image-rendering: pixelated;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 90vh;   /* ★ gameplay only uses top 90% */
   }
 
-  /* Joystick overlay (screen-space, not scaled) */
+  /* UI BAR (fixed bottom area) */
+  #uiBar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 10vh;   /* ★ bottom 10% reserved for UI */
+    background: rgba(30, 30, 30, 0.75);
+    backdrop-filter: blur(5px);
+    border-top: 2px solid rgba(255,255,255,0.15);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-family: sans-serif;
+    font-size: 2.2vh;
+  }
+
+  /* JOYSTICK */
   #joystick {
-    position: fixed;
-    width: 120px;
-    height: 120px;
+    position: absolute;
+    width: 120px; height: 120px;
     border-radius: 50%;
     background: rgba(255,255,255,0.15);
     display: none;
-    z-index: 10;
     touch-action: none;
   }
+
   #stick {
     position: absolute;
-    width: 60px;
-    height: 60px;
+    width: 60px; height: 60px;
     border-radius: 50%;
     background: rgba(255,255,255,0.4);
-    left: 30px;
-    top: 30px;
-    touch-action: none;
+    left: 30px; top: 30px;
   }
 </style>
 </head>
 <body>
 
+<!-- GAME CANVAS (top 90%) -->
 <canvas id="gameCanvas"></canvas>
+
+<!-- UI BAR (bottom 10%) -->
+<div id="uiBar">
+  UI BAR — buttons go here
+</div>
+
+<!-- JOYSTICK -->
 <div id="joystick"><div id="stick"></div></div>
 
 <script>
-// ========================================================
-// CONSTANTS & DEBUG
-// ========================================================
-const GAME_W = 768; // internal game resolution (world units)
-const GAME_H = 768;
-
-let DEBUG = true;   // set to false later when you're happy
-
-// ========================================================
-// CANVAS SETUP (pixel-perfect core 768×768)
-// ========================================================
+// ==========================================
+// CANVAS ADJUSTMENT
+// ==========================================
 const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d", { alpha: false });
+const ctx = canvas.getContext("2d");
 
-canvas.width = GAME_W;
-canvas.height = GAME_H;
-
-function updateCanvasScale() {
-  const scale = Math.min(
-    window.innerWidth / GAME_W,
-    window.innerHeight / GAME_H
-  );
-
-  canvas.style.width = GAME_W + "px";
-  canvas.style.height = GAME_H + "px";
-
-  canvas.style.transform = `translate(-50%, -50%) scale(${scale})`;
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight * 0.90;  // ★ TOP 90%
 }
+resize();
+window.addEventListener("resize", resize);
 
-window.addEventListener("resize", updateCanvasScale);
-updateCanvasScale();
-
-// ========================================================
+// ==========================================
 // ASSETS
-// ========================================================
+// ==========================================
 const bg = new Image();
-bg.src = "background.png"; // 768×768
+bg.src = "background.png";
 
-const colImg = new Image();
-colImg.src = "collision.png"; // 768×768, black = blocked
+const collisionImg = new Image();
+collisionImg.src = "collision.png";
 
+// Player sprites
 const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
   const img = new Image();
   img.src = src;
   return img;
 });
 
-// ========================================================
-// COLLISION MAP (offscreen canvas, 1:1 with world)
-// ========================================================
+// ==========================================
+// COLLISION MAP
+// ==========================================
 const colCanvas = document.createElement("canvas");
 const colCtx = colCanvas.getContext("2d");
-let colReady = false;
+let collisionReady = false;
 
-colImg.onload = () => {
-  colCanvas.width = colImg.width;
-  colCanvas.height = colImg.height;
-  colCtx.drawImage(colImg, 0, 0);
-  colReady = true;
+collisionImg.onload = () => {
+  colCanvas.width = collisionImg.width;
+  colCanvas.height = collisionImg.height;
+  colCtx.drawImage(collisionImg, 0, 0);
+  collisionReady = true;
 };
 
 function isBlocked(px, py) {
-  if (!colReady) return false;
+  if (!collisionReady) return false;
+  if (px < 0 || py < 0 || px >= colCanvas.width || py >= colCanvas.height) return true;
 
-  if (px < 0 || py < 0 || px >= colCanvas.width || py >= colCanvas.height) {
-    return true;
-  }
-
-  const d = colCtx.getImageData(px, py, 1, 1).data;
-  return d[0] < 50 && d[1] < 50 && d[2] < 50;
+  const data = colCtx.getImageData(px, py, 1, 1).data;
+  return data[0] < 50 && data[1] < 50 && data[2] < 50;
 }
 
-// box collision in WORLD coordinates
-function isBoxBlocked(x, y, w, h, offsetY) {
-  const cx = x;
-  const cy = y + offsetY; // move box down towards feet
-
-  const hw = w / 2;
-  const hh = h / 2;
-
-  const corners = [
-    { x: cx - hw, y: cy - hh },
-    { x: cx + hw, y: cy - hh },
-    { x: cx - hw, y: cy + hh },
-    { x: cx + hw, y: cy + hh },
-  ];
-
-  for (const pt of corners) {
-    if (isBlocked(pt.x, pt.y)) return true;
-  }
-  return false;
-}
-
-// ========================================================
+// ==========================================
 // PLAYER
-// ========================================================
+// ==========================================
 let player = {
   x: 500,
   y: 500,
   speed: 180,
-
   frame: 0,
   frameTimer: 0,
-  scale: 1.0,          // 1:1 sprite pixels to world pixels
-
-  moving: false,
+  scale: 0.25,
   facingLeft: false,
-
-  // collision box (tune with debug)
-  boxW: 18,
-  boxH: 12,
-  boxOffsetY: 10      // how far below the center the feet are
+  moving: false
 };
 
-// ========================================================
-// CAMERA (for now, world == viewport, so this will clamp to 0)
-// ========================================================
+// ==========================================
+// CAMERA
+// ==========================================
 let camera = { x: 0, y: 0 };
 
 function updateCamera() {
-  let tx = player.x - GAME_W / 2;
-  let ty = player.y - GAME_H / 2;
+  const cw = canvas.width;
+  const ch = canvas.height;
 
-  // world bounds (same as bg size)
-  const WORLD_W = GAME_W;
-  const WORLD_H = GAME_H;
+  let targetX = player.x - cw / 2;
+  let targetY = player.y - ch / 2;
 
-  tx = Math.max(0, Math.min(tx, WORLD_W - GAME_W));
-  ty = Math.max(0, Math.min(ty, WORLD_H - GAME_H));
+  targetX = Math.max(0, Math.min(targetX, bg.width - cw));
+  targetY = Math.max(0, Math.min(targetY, bg.height - ch));
 
-  camera.x += (tx - camera.x) * 0.1;
-  camera.y += (ty - camera.y) * 0.1;
+  camera.x += (targetX - camera.x) * 0.1;
+  camera.y += (targetY - camera.y) * 0.1;
 }
 
-// ========================================================
-// JOYSTICK (screen-space, not scaled)
-// ========================================================
+// ==========================================
+// JOYSTICK
+// ==========================================
 const joyDiv = document.getElementById("joystick");
 const stick = document.getElementById("stick");
 
-let joy = { active: false, dx: 0, dy: 0, originX: 0, originY: 0 };
+let joy = {
+  active: false,
+  dx: 0, dy: 0,
+  originX: 0, originY: 0
+};
 
-window.addEventListener("touchstart", e => {
+canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
   joy.active = true;
+
   joy.originX = t.clientX;
   joy.originY = t.clientY;
 
   joyDiv.style.left = (t.clientX - 60) + "px";
-  joyDiv.style.top  = (t.clientY - 60) + "px";
+  joyDiv.style.top = (t.clientY - 60) + "px";
   joyDiv.style.display = "block";
 
   stick.style.left = "30px";
-  stick.style.top  = "30px";
-}, { passive: false });
+  stick.style.top = "30px";
+});
 
-window.addEventListener("touchmove", e => {
+canvas.addEventListener("touchmove", e => {
   if (!joy.active) return;
   const t = e.touches[0];
 
-  let dx = t.clientX - joy.originX;
-  let dy = t.clientY - joy.originY;
+  const dx = t.clientX - joy.originX;
+  const dy = t.clientY - joy.originY;
+
   const dist = Math.hypot(dx, dy);
   const max = 40;
 
+  let ndx = dx, ndy = dy;
   if (dist > max) {
-    dx *= max / dist;
-    dy *= max / dist;
+    ndx = (dx / dist) * max;
+    ndy = (dy / dist) * max;
   }
 
-  joy.dx = dx / max;
-  joy.dy = dy / max;
+  stick.style.left = (30 + ndx) + "px";
+  stick.style.top = (30 + ndy) + "px";
 
-  stick.style.left = (30 + dx) + "px";
-  stick.style.top  = (30 + dy) + "px";
+  joy.dx = ndx / max;
+  joy.dy = ndy / max;
+});
 
-  e.preventDefault();
-}, { passive: false });
-
-window.addEventListener("touchend", () => {
+canvas.addEventListener("touchend", e => {
   joy.active = false;
   joy.dx = joy.dy = 0;
   joyDiv.style.display = "none";
 });
 
-// ========================================================
+// ==========================================
 // GAME LOOP
-// ========================================================
+// ==========================================
 let last = 0;
 function loop(t) {
   const dt = (t - last) / 1000;
@@ -248,14 +222,10 @@ function loop(t) {
 
   update(dt);
   draw();
-
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
-// ========================================================
-// UPDATE
-// ========================================================
 function update(dt) {
   player.moving = Math.abs(joy.dx) > 0.05 || Math.abs(joy.dy) > 0.05;
 
@@ -263,12 +233,8 @@ function update(dt) {
     const nextX = player.x + joy.dx * player.speed * dt;
     const nextY = player.y + joy.dy * player.speed * dt;
 
-    if (!isBoxBlocked(nextX, player.y, player.boxW, player.boxH, player.boxOffsetY)) {
-      player.x = nextX;
-    }
-    if (!isBoxBlocked(player.x, nextY, player.boxW, player.boxH, player.boxOffsetY)) {
-      player.y = nextY;
-    }
+    if (!isBlocked(nextX, player.y)) player.x = nextX;
+    if (!isBlocked(player.x, nextY)) player.y = nextY;
   }
 
   if (joy.dx < -0.05) player.facingLeft = true;
@@ -287,67 +253,40 @@ function update(dt) {
   updateCamera();
 }
 
-// ========================================================
-// DRAW + DEBUG
-// ========================================================
+// ==========================================
+// DRAW
+// ==========================================
 function draw() {
-  ctx.clearRect(0, 0, GAME_W, GAME_H);
-  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Background — pixel perfect, no scaling
-  if (bg.complete && bg.width > 0) {
+  if (bg.width > 0) {
     ctx.drawImage(
       bg,
       camera.x, camera.y,
-      GAME_W, GAME_H,
+      canvas.width, canvas.height,
       0, 0,
-      GAME_W, GAME_H
+      canvas.width, canvas.height
     );
   }
 
-  // Player sprite
   const img = frames[player.frame];
   const w = img.width * player.scale;
   const h = img.height * player.scale;
 
-  const sx = player.x - camera.x - w / 2;
-  const sy = player.y - camera.y - h / 2;
+  const drawX = player.x - camera.x - w/2;
+  const drawY = player.y - camera.y - h/2;
 
   if (player.facingLeft) {
     ctx.save();
-    ctx.translate(sx + w / 2, sy + h / 2);
+    ctx.translate(drawX + w/2, drawY + h/2);
     ctx.scale(-1, 1);
     ctx.drawImage(img, -w/2, -h/2, w, h);
     ctx.restore();
   } else {
-    ctx.drawImage(img, sx, sy, w, h);
-  }
-
-  // DEBUG collision box
-  if (DEBUG) {
-    const cx = player.x - camera.x;
-    const cy = player.y - camera.y + player.boxOffsetY;
-    const hw = player.boxW / 2;
-    const hh = player.boxH / 2;
-
-    // red box
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(cx - hw, cy - hh, player.boxW, player.boxH);
-
-    // cyan corners
-    ctx.fillStyle = "cyan";
-    const corners = [
-      { x: cx - hw, y: cy - hh },
-      { x: cx + hw, y: cy - hh },
-      { x: cx - hw, y: cy + hh },
-      { x: cx + hw, y: cy + hh }
-    ];
-    corners.forEach(pt => {
-      ctx.fillRect(pt.x - 2, pt.y - 2, 4, 4);
-    });
+    ctx.drawImage(img, drawX, drawY, w, h);
   }
 }
 </script>
+
 </body>
 </html>
