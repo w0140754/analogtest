@@ -12,23 +12,21 @@
     touch-action: none;
   }
 
-  /* GAME CANVAS (now 90% height) */
   #gameCanvas {
     position: absolute;
     top: 0;
     left: 0;
     width: 100vw;
-    height: 90vh;   /* ★ gameplay only uses top 90% */
+    height: 90vh;
   }
 
-  /* UI BAR (fixed bottom area) */
   #uiBar {
     position: absolute;
     bottom: 0;
     left: 0;
     width: 100vw;
-    height: 10vh;   /* ★ bottom 10% reserved for UI */
-    background: rgba(30, 30, 30, 0.75);
+    height: 10vh;
+    background: rgba(30,30,30,0.75);
     backdrop-filter: blur(5px);
     border-top: 2px solid rgba(255,255,255,0.15);
     display: flex;
@@ -39,7 +37,6 @@
     font-size: 2.2vh;
   }
 
-  /* JOYSTICK */
   #joystick {
     position: absolute;
     width: 120px; height: 120px;
@@ -60,27 +57,24 @@
 </head>
 <body>
 
-<!-- GAME CANVAS (top 90%) -->
 <canvas id="gameCanvas"></canvas>
 
-<!-- UI BAR (bottom 10%) -->
 <div id="uiBar">
   UI BAR — buttons go here
 </div>
 
-<!-- JOYSTICK -->
 <div id="joystick"><div id="stick"></div></div>
 
 <script>
 // ==========================================
-// CANVAS ADJUSTMENT
+// CANVAS
 // ==========================================
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
 function resize() {
   canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight * 0.90;  // ★ TOP 90%
+  canvas.height = window.innerHeight * 0.90;
 }
 resize();
 window.addEventListener("resize", resize);
@@ -94,8 +88,7 @@ bg.src = "background.png";
 const collisionImg = new Image();
 collisionImg.src = "collision.png";
 
-// Player sprites
-const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
+const frames = ["player1.png","player2.png","player3.png"].map(src => {
   const img = new Image();
   img.src = src;
   return img;
@@ -115,17 +108,45 @@ collisionImg.onload = () => {
   collisionReady = true;
 };
 
-function isBlocked(px, py) {
+// Returns true if pixel is blocked (black)
+function pixelBlocked(px, py) {
   if (!collisionReady) return false;
   if (px < 0 || py < 0 || px >= colCanvas.width || py >= colCanvas.height) return true;
 
-  const data = colCtx.getImageData(px, py, 1, 1).data;
-  return data[0] < 50 && data[1] < 50 && data[2] < 50;
+  const d = colCtx.getImageData(px, py, 1, 1).data;
+  return d[0] < 50 && d[1] < 50 && d[2] < 50;
+}
+
+// ==========================================
+// HITBOX COLLISION (square)
+// ==========================================
+
+// You can change these numbers any time.
+function isHitboxBlocked(worldX, worldY, boxW, boxH, offsetY = 0) {
+  const cx = worldX;
+  const cy = worldY + offsetY;
+
+  const halfW = boxW / 2;
+  const halfH = boxH / 2;
+
+  const points = [
+    { x: cx - halfW, y: cy - halfH }, // top-left
+    { x: cx + halfW, y: cy - halfH }, // top-right
+    { x: cx - halfW, y: cy + halfH }, // bottom-left
+    { x: cx + halfW, y: cy + halfH }  // bottom-right
+  ];
+
+  for (const p of points) {
+    if (pixelBlocked(p.x, p.y)) return true;
+  }
+  return false;
 }
 
 // ==========================================
 // PLAYER
 // ==========================================
+let DEBUG_HITBOX = true; // toggle on/off
+
 let player = {
   x: 500,
   y: 500,
@@ -134,7 +155,12 @@ let player = {
   frameTimer: 0,
   scale: 0.25,
   facingLeft: false,
-  moving: false
+  moving: false,
+
+  // ⭐ HITBOX IN REAL PIXELS (adjust freely)
+  boxW: 24,     // width of hitbox
+  boxH: 28,     // height of hitbox
+  boxOffsetY: 14  // move hitbox downward toward feet
 };
 
 // ==========================================
@@ -162,11 +188,7 @@ function updateCamera() {
 const joyDiv = document.getElementById("joystick");
 const stick = document.getElementById("stick");
 
-let joy = {
-  active: false,
-  dx: 0, dy: 0,
-  originX: 0, originY: 0
-};
+let joy = { active:false, dx:0, dy:0, originX:0, originY:0 };
 
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
@@ -176,11 +198,11 @@ canvas.addEventListener("touchstart", e => {
   joy.originY = t.clientY;
 
   joyDiv.style.left = (t.clientX - 60) + "px";
-  joyDiv.style.top = (t.clientY - 60) + "px";
+  joyDiv.style.top  = (t.clientY - 60) + "px";
   joyDiv.style.display = "block";
 
   stick.style.left = "30px";
-  stick.style.top = "30px";
+  stick.style.top  = "30px";
 });
 
 canvas.addEventListener("touchmove", e => {
@@ -200,13 +222,13 @@ canvas.addEventListener("touchmove", e => {
   }
 
   stick.style.left = (30 + ndx) + "px";
-  stick.style.top = (30 + ndy) + "px";
+  stick.style.top  = (30 + ndy) + "px";
 
   joy.dx = ndx / max;
   joy.dy = ndy / max;
 });
 
-canvas.addEventListener("touchend", e => {
+canvas.addEventListener("touchend", () => {
   joy.active = false;
   joy.dx = joy.dy = 0;
   joyDiv.style.display = "none";
@@ -226,6 +248,9 @@ function loop(t) {
 }
 requestAnimationFrame(loop);
 
+// ==========================================
+// UPDATE
+// ==========================================
 function update(dt) {
   player.moving = Math.abs(joy.dx) > 0.05 || Math.abs(joy.dy) > 0.05;
 
@@ -233,8 +258,11 @@ function update(dt) {
     const nextX = player.x + joy.dx * player.speed * dt;
     const nextY = player.y + joy.dy * player.speed * dt;
 
-    if (!isBlocked(nextX, player.y)) player.x = nextX;
-    if (!isBlocked(player.x, nextY)) player.y = nextY;
+    if (!isHitboxBlocked(nextX, player.y, player.boxW, player.boxH, player.boxOffsetY))
+      player.x = nextX;
+
+    if (!isHitboxBlocked(player.x, nextY, player.boxW, player.boxH, player.boxOffsetY))
+      player.y = nextY;
   }
 
   if (joy.dx < -0.05) player.facingLeft = true;
@@ -284,6 +312,32 @@ function draw() {
     ctx.restore();
   } else {
     ctx.drawImage(img, drawX, drawY, w, h);
+  }
+
+  // ==========================
+  // DEBUG HITBOX DRAWING
+  // ==========================
+  if (DEBUG_HITBOX) {
+    const cx = player.x - camera.x;
+    const cy = player.y - camera.y + player.boxOffsetY;
+
+    const hw = player.boxW / 2;
+    const hh = player.boxH / 2;
+
+    // red box
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - hw, cy - hh, player.boxW, player.boxH);
+
+    // cyan corners
+    ctx.fillStyle = "cyan";
+    const corners = [
+      {x: cx - hw, y: cy - hh},
+      {x: cx + hw, y: cy - hh},
+      {x: cx - hw, y: cy + hh},
+      {x: cx + hw, y: cy + hh}
+    ];
+    corners.forEach(pt => ctx.fillRect(pt.x - 2, pt.y - 2, 4, 4));
   }
 }
 </script>
