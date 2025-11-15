@@ -20,7 +20,6 @@
     height: 100vh;
   }
 
-  /* Joystick */
   #joystick {
     position: absolute;
     width: 120px; height: 120px;
@@ -30,14 +29,12 @@
     touch-action: none;
     z-index: 10;
   }
-
   #stick {
     position: absolute;
     width: 60px; height: 60px;
     border-radius: 50%;
     background: rgba(255,255,255,0.4);
     left: 30px; top: 30px;
-    touch-action: none;
   }
 </style>
 </head>
@@ -64,13 +61,13 @@ window.addEventListener("resize", resize);
 // ASSETS
 // ========================================================
 const bg = new Image();
-bg.src = "background.png";         // must be 768x768 for your map
+bg.src = "background.png";
 
 const collisionImg = new Image();
-collisionImg.src = "collision.png"; // same exact dimensions
+collisionImg.src = "collision.png";
 
-const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
-  const img = new Image();
+const frames = ["player1.png","player2.png","player3.png"].map(src => {
+  let img = new Image();
   img.src = src;
   return img;
 });
@@ -89,7 +86,7 @@ collisionImg.onload = () => {
   collisionReady = true;
 };
 
-// single-pixel collision
+// Pixel check
 function isBlocked(px, py) {
   if (!collisionReady) return false;
 
@@ -101,21 +98,24 @@ function isBlocked(px, py) {
 }
 
 // ========================================================
-// ★ FOOT-BASED + RADIUS COLLISION ★
+// ★ SQUARE COLLISION CHECK (4 corners) ★
 // ========================================================
-function isBlockedFootRadius(x, y, radius, footOffset) {
-  const fx = x;
-  const fy = y + footOffset;  // only collide at FEET
+function isBoxBlocked(x, y, width, height) {
+  const halfW = width / 2;
+  const halfH = height / 2;
 
-  const steps = 12;
-  for (let i = 0; i < steps; i++) {
-    const angle = (Math.PI * 2 / steps) * i;
-    const px = fx + Math.cos(angle) * radius;
-    const py = fy + Math.sin(angle) * radius;
+  // corners in world coords
+  const tl = { x: x - halfW, y: y - halfH };
+  const tr = { x: x + halfW, y: y - halfH };
+  const bl = { x: x - halfW, y: y + halfH };
+  const br = { x: x + halfW, y: y + halfH };
 
-    if (isBlocked(px, py)) return true;
-  }
-  return false;
+  return (
+    isBlocked(tl.x, tl.y) ||
+    isBlocked(tr.x, tr.y) ||
+    isBlocked(bl.x, bl.y) ||
+    isBlocked(br.x, br.y)
+  );
 }
 
 // ========================================================
@@ -133,9 +133,8 @@ let player = {
   facingLeft: false,
   moving: false,
 
-  // FOOT COLLISION SETTINGS
-  radius: 10,        // collision circle radius
-  footOffset: 12     // distance from center to feet (in world px)
+  boxW: 14,   // width of collision box
+  boxH: 10    // height of collision box (feet area)
 };
 
 // ========================================================
@@ -163,11 +162,7 @@ function updateCamera() {
 const joyDiv = document.getElementById("joystick");
 const stick = document.getElementById("stick");
 
-let joy = {
-  active: false,
-  dx: 0, dy: 0,
-  originX: 0, originY: 0
-};
+let joy = { active:false, dx:0, dy:0, originX:0, originY:0 };
 
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
@@ -190,19 +185,20 @@ canvas.addEventListener("touchmove", e => {
 
   let dx = t.clientX - joy.originX;
   let dy = t.clientY - joy.originY;
+
   const dist = Math.hypot(dx, dy);
   const max = 40;
 
   if (dist > max) {
-    dx = dx / dist * max;
-    dy = dy / dist * max;
+    dx = (dx / dist) * max;
+    dy = (dy / dist) * max;
   }
+
+  stick.style.left = (30 + dx) + "px";
+  stick.style.top =  (30 + dy) + "px";
 
   joy.dx = dx / max;
   joy.dy = dy / max;
-
-  stick.style.left = (30 + dx) + "px";
-  stick.style.top = (30 + dy) + "px";
 });
 
 canvas.addEventListener("touchend", () => {
@@ -221,6 +217,7 @@ function loop(t) {
 
   update(dt);
   draw();
+
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -235,11 +232,13 @@ function update(dt) {
     const nextX = player.x + joy.dx * player.speed * dt;
     const nextY = player.y + joy.dy * player.speed * dt;
 
-    // ★ FOOT COLLISION APPLIED HERE ★
-    if (!isBlockedFootRadius(nextX, player.y, player.radius, player.footOffset)) {
+    // test horizontal
+    if (!isBoxBlocked(nextX, player.y, player.boxW, player.boxH)) {
       player.x = nextX;
     }
-    if (!isBlockedFootRadius(player.x, nextY, player.radius, player.footOffset)) {
+
+    // test vertical
+    if (!isBoxBlocked(player.x, nextY, player.boxW, player.boxH)) {
       player.y = nextY;
     }
   }
@@ -254,7 +253,7 @@ function update(dt) {
       player.frameTimer = 0;
     }
   } else {
-    player.frame = 0; // idle
+    player.frame = 0;
   }
 
   updateCamera();
@@ -267,7 +266,6 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = false;
 
-  // Background (cropped)
   if (bg.width > 0) {
     ctx.drawImage(
       bg,
@@ -278,7 +276,6 @@ function draw() {
     );
   }
 
-  // Draw player
   const img = frames[player.frame];
   const w = img.width * player.scale;
   const h = img.height * player.scale;
