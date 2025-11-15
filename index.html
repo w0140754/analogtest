@@ -40,7 +40,7 @@
     align-items: center;
     gap: 1.5vh;
     z-index: 9999;
-    pointer-events: none; /* we’ll enable on children only */
+    pointer-events: none; /* children handle clicks */
     font-family: sans-serif;
     font-size: 2.2vh;
     color: white;
@@ -117,7 +117,7 @@
 
 <!-- FLOATING BOTTOM UI BUTTONS -->
 <div id="uiButtons">
-  <div id="defaultUI">UI — walk up to something…</div>
+  <div id="defaultUI">UI — walk up to things…</div>
 
   <button id="harvestButton" class="ui-btn">HARVEST BLOSSOM</button>
 
@@ -333,16 +333,15 @@ let items = [
 // MONSTER
 // =====================================================
 let monster = {
-  x: 400,
+  x: 400,          // you mentioned updating to 400, 200
   y: 200,
   alive: true,
   hpMax: 10,
   hp: 10,
   scale: 0.30,
-  state: "idle",       // "idle" or "dying"
+  state: "idle",       // "idle", "attack", "dying"
   fadeAlpha: 1,
 
-  attackFlash: 0,      // unused sprite-switch now, but kept for timing
   hitFlash: 0,         // red flash timer when taking damage
   lungeOffsetX: 0,
   lungeOffsetY: 0
@@ -396,6 +395,7 @@ function setUIMode(mode) {
 
 setUIMode("default");
 
+// movement lock: during battle, teleport, OR when FIGHT/RUN is up
 function movementLocked() {
   return (
     battleMode ||
@@ -444,7 +444,8 @@ function performMonsterCounterAttack() {
     return;
   }
 
-  // Monster lunges toward player and deals damage
+  // Monster enters attack pose + lunges toward player
+  monster.state = "attack";
   const dx = player.x - monster.x;
   const dy = player.y - monster.y;
   const len = Math.hypot(dx, dy) || 1;
@@ -472,6 +473,7 @@ function performMonsterCounterAttack() {
     setTimeout(() => {
       monster.lungeOffsetX = 0;
       monster.lungeOffsetY = 0;
+      if (monster.alive) monster.state = "idle";
       // End of monster's turn: player can act again
       if (battleMode) {
         battleBusy = false;
@@ -648,7 +650,7 @@ function update(dt) {
     if (monster.fadeAlpha < 0) monster.fadeAlpha = 0;
   }
 
-  // Lunge offset decay (just in case anything lingers)
+  // Lunge offset soft decay
   player.lungeOffsetX *= 0.85;
   player.lungeOffsetY *= 0.85;
   if (Math.abs(player.lungeOffsetX) < 0.01) player.lungeOffsetX = 0;
@@ -739,7 +741,6 @@ function drawHPBubbleOval(worldX, worldY, hp, hpMax) {
   ctx.restore();
 }
 
-// Draw a red sprite-sized flash overlay on given rect
 function drawHitFlashRect(x, y, w, h, alpha) {
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -780,11 +781,20 @@ function draw() {
   }
 
   // Monster
-  let monsterDrawn = false;
   if (monster.alive || (monster.state === "dying" && monster.fadeAlpha > 0)) {
+    // Decide which sprite to use
     let mImg = monsterIdleImg;
+
     if (monster.state === "dying") {
       mImg = monsterHurtImg;
+    } else if (monster.hitFlash > 0) {
+      mImg = monsterHurtImg;
+    } else if (
+      monster.state === "attack" ||
+      (monster.alive && currentUIMode === "monsterChoice" && !battleMode)
+    ) {
+      // Attack sprite while lunging OR when FIGHT/RUN UI is up
+      mImg = monsterAttackImg;
     }
 
     const mScale = monster.scale;
@@ -800,9 +810,7 @@ function draw() {
     ctx.drawImage(mImg, mx, my, mw, mh);
     ctx.restore();
 
-    monsterDrawn = true;
-
-    // Red hit flash on monster if taking damage
+    // Red hit flash on monster (sprite-sized)
     if (monster.hitFlash > 0) {
       const alpha = (monster.hitFlash / 0.18) * 0.18; // subtle
       drawHitFlashRect(mx, my, mw, mh, alpha);
@@ -834,7 +842,7 @@ function draw() {
     ctx.drawImage(img, drawX, drawY, w, h);
   }
 
-  // Red hit flash on player
+  // Red hit flash on player (sprite-sized)
   if (player.hitFlash > 0) {
     const alpha = (player.hitFlash / 0.18) * 0.18; // subtle
     drawHitFlashRect(drawX, drawY, w, h, alpha);
