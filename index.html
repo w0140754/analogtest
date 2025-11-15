@@ -791,12 +791,20 @@ function draw() {
     const screenMY = worldMY - camera.y;
 
     // Bobbing & breathing only while roaming & not in battle
-    let bob = 0;
-    let breathe = 1;
-    if (monster.aiState === "roam" && !battleMode) {
-      bob = Math.sin(currentTime / 500) * 4;
-      breathe = 1 + Math.sin(currentTime / 700) * 0.02;
-    }
+       let bob = Math.sin(currentTime / 500) * 4;
+      let breathe = 1 + Math.sin(currentTime / 700) * 0.02;
+      
+      // Freeze animation during aggro, battle, or dying
+      if (
+        monster.aiState === "aggro" ||
+        monster.aiState === "battle" ||
+        monster.aiState === "dying" ||
+        battleMode
+      ) {
+        bob = 0;
+        breathe = 1;
+      }
+
 
     ctx.save();
     ctx.globalAlpha = (monster.aiState === "dying") ? monster.fadeAlpha : 1;
