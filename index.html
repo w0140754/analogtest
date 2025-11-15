@@ -152,6 +152,8 @@ function resize() {
 resize();
 window.addEventListener("resize", resize);
 
+let currentTime = 0; // for bobbing / breathing
+
 // =====================================================
 // ASSETS
 // =====================================================
@@ -200,9 +202,7 @@ function pixelBlocked(x, y) {
   return d[0] < 50 && d[1] < 50 && d[2] < 50;
 }
 
-// =====================================================
-// CIRCLE HITBOX
-// =====================================================
+// Circle-based collision probe
 function circleBlocked(cx, cy, r) {
   const N = 10;
   for (let i = 0; i < N; i++) {
@@ -330,22 +330,46 @@ let items = [
 ];
 
 // =====================================================
-// MONSTER
+// MONSTER (with roaming AI + bobbing + breathing)
 // =====================================================
 let monster = {
-  x: 400,          // you mentioned updating to 400, 200
+  x: 400,
   y: 200,
   alive: true,
   hpMax: 10,
   hp: 10,
   scale: 0.30,
-  state: "idle",       // "idle", "attack", "dying"
+
+  state: "idle",       // visual: "idle", "attack", "dying"
+  aiState: "roam",     // logic: "roam", "pause", "aggro", "battle", "dying"
   fadeAlpha: 1,
 
   hitFlash: 0,         // red flash timer when taking damage
   lungeOffsetX: 0,
-  lungeOffsetY: 0
+  lungeOffsetY: 0,
+
+  // roaming parameters
+  roamSpeed: 40,
+  roamDirX: 1,
+  roamDirY: 0,
+  roamTimer: 0,
+  pauseTimer: 0
 };
+
+function startMonsterRoam() {
+  monster.aiState = "roam";
+  const angle = Math.random() * Math.PI * 2;
+  monster.roamDirX = Math.cos(angle);
+  monster.roamDirY = Math.sin(angle);
+  monster.roamTimer = 0.8 + Math.random() * 1.2; // 0.8–2.0s
+}
+
+function startMonsterPause() {
+  monster.aiState = "pause";
+  monster.pauseTimer = 0.7 + Math.random() * 0.8; // 0.7–1.5s
+}
+
+startMonsterRoam();
 
 // =====================================================
 // UI BUTTONS & MODES
@@ -425,6 +449,7 @@ fightBtn.addEventListener("click", () => {
   if (!monster.alive) return;
   battleMode = true;
   battleBusy = false;
+  monster.aiState = "battle";
   setUIMode("battle");
 });
 
@@ -432,6 +457,8 @@ runBtn.addEventListener("click", () => {
   if (!monster.alive) return;
   battleMode = false;
   battleBusy = false;
+  monster.aiState = "roam";
+  monster.state = "idle";
   setUIMode("none");
   resetLunges();
   startRunTeleport();
@@ -463,6 +490,8 @@ function performMonsterCounterAttack() {
   if (player.hp <= 0) {
     battleMode = false;
     battleBusy = false;
+    monster.aiState = "roam";
+    monster.state = "idle";
     setUIMode("none");
     resetLunges();
     startRunTeleport(() => {
@@ -473,7 +502,9 @@ function performMonsterCounterAttack() {
     setTimeout(() => {
       monster.lungeOffsetX = 0;
       monster.lungeOffsetY = 0;
-      if (monster.alive) monster.state = "idle";
+      if (monster.alive && monster.aiState !== "dying") {
+        monster.state = "idle";
+      }
       // End of monster's turn: player can act again
       if (battleMode) {
         battleBusy = false;
@@ -510,6 +541,7 @@ function performAttack(damage) {
     if (monster.alive) {
       monster.alive = false;
       monster.state = "dying";
+      monster.aiState = "dying";
       monster.fadeAlpha = 1;
     }
     // End battle after brief moment so flash shows
@@ -579,12 +611,72 @@ function startRunTeleport(onAfterTeleport) {
 }
 
 // =====================================================
+// MONSTER ROAMING AI
+// =====================================================
+function updateMonsterAI(dt) {
+  if (!monster.alive || monster.aiState === "dying") return;
+  if (battleMode) {
+    monster.aiState = "battle";
+    return;
+  }
+
+  // Aggro radius: if player close, switch to aggro (no chasing, just posture)
+  const dxp = player.x - monster.x;
+  const dyp = player.y - monster.y;
+  const dist = Math.hypot(dxp, dyp);
+
+  const AGGRO_RADIUS = 120;
+
+  if (dist < AGGRO_RADIUS && !runTeleportInProgress) {
+    monster.aiState = "aggro";
+    monster.state = "attack";
+    return; // no roaming when aggro / waiting for FIGHT/RUN
+  } else if (monster.aiState === "aggro") {
+    // Player went away (e.g., via RUN teleport)
+    monster.aiState = "roam";
+    monster.state = "idle";
+    startMonsterRoam();
+  }
+
+  // Normal roaming / pausing
+  if (monster.aiState === "pause") {
+    monster.pauseTimer -= dt;
+    if (monster.pauseTimer <= 0) {
+      startMonsterRoam();
+    }
+  } else if (monster.aiState === "roam") {
+    const speed = monster.roamSpeed;
+    const nextX = monster.x + monster.roamDirX * speed * dt;
+    const nextY = monster.y + monster.roamDirY * speed * dt;
+
+    // Use a small circle for monster collision
+    const probeOffsetY = 10;
+    const probeRadius = 30;
+
+    if (!circleBlocked(nextX, nextY + probeOffsetY, probeRadius)) {
+      monster.x = nextX;
+      monster.y = nextY;
+    } else {
+      // Hit an obstacle → pause, then new direction
+      startMonsterPause();
+      return;
+    }
+
+    monster.roamTimer -= dt;
+    if (monster.roamTimer <= 0) {
+      startMonsterPause();
+    }
+  }
+}
+
+// =====================================================
 // LOOP
 // =====================================================
 let last = 0;
 function loop(t) {
   const dt = (t - last) / 1000;
   last = t;
+  currentTime = t;
 
   update(dt);
   draw();
@@ -645,7 +737,7 @@ function update(dt) {
   }
 
   // Monster fade-out when dying
-  if (!monster.alive && monster.state === "dying") {
+  if (!monster.alive && monster.aiState === "dying") {
     monster.fadeAlpha -= dt * 1.8; // fade over ~0.55s
     if (monster.fadeAlpha < 0) monster.fadeAlpha = 0;
   }
@@ -660,6 +752,9 @@ function update(dt) {
   monster.lungeOffsetY *= 0.85;
   if (Math.abs(monster.lungeOffsetX) < 0.01) monster.lungeOffsetX = 0;
   if (Math.abs(monster.lungeOffsetY) < 0.01) monster.lungeOffsetY = 0;
+
+  // Monster roaming AI
+  updateMonsterAI(dt);
 
   // Proximity UI logic only when not in battle or teleport
   if (!movementLocked()) {
@@ -687,10 +782,23 @@ function update(dt) {
 
     if (nearMonster) {
       setUIMode("monsterChoice");
+      // Monster looks aggressive while FIGHT/RUN is up
+      if (monster.alive && monster.aiState !== "battle" && monster.aiState !== "dying") {
+        monster.state = "attack";
+        monster.aiState = "aggro";
+      }
     } else if (nearBlossom) {
       setUIMode("blossom");
+      if (monster.alive && monster.aiState === "aggro" && !battleMode) {
+        monster.aiState = "roam";
+        monster.state = "idle";
+      }
     } else if (currentUIMode !== "default") {
       setUIMode("default");
+      if (monster.alive && monster.aiState === "aggro" && !battleMode) {
+        monster.aiState = "roam";
+        monster.state = "idle";
+      }
     }
   }
 
@@ -781,11 +889,11 @@ function draw() {
   }
 
   // Monster
-  if (monster.alive || (monster.state === "dying" && monster.fadeAlpha > 0)) {
+  if (monster.alive || (monster.aiState === "dying" && monster.fadeAlpha > 0)) {
     // Decide which sprite to use
     let mImg = monsterIdleImg;
 
-    if (monster.state === "dying") {
+    if (monster.aiState === "dying") {
       mImg = monsterHurtImg;
     } else if (monster.hitFlash > 0) {
       mImg = monsterHurtImg;
@@ -797,23 +905,52 @@ function draw() {
       mImg = monsterAttackImg;
     }
 
-    const mScale = monster.scale;
-    const mw = mImg.width * mScale;
-    const mh = mImg.height * mScale;
+    const baseScale = monster.scale;
+    const mw = mImg.width * baseScale;
+    const mh = mImg.height * baseScale;
     const worldMX = monster.x + monster.lungeOffsetX;
     const worldMY = monster.y + monster.lungeOffsetY;
-    const mx = worldMX - camera.x - mw / 2;
-    const my = worldMY - camera.y - mh / 2;
 
+    const screenMX = worldMX - camera.x;
+    const screenMY = worldMY - camera.y;
+
+    // Bobbing & breathing
+    const bob = Math.sin(currentTime / 500) * 4;         // up/down
+    const breathe = 1 + Math.sin(currentTime / 700) * 0.02; // ±2% scale
+
+    // Shadow (squashes slightly with bob)
+    const shadowY = screenMY + mh/2 + 4;
+    const shadowScale = 1 - (bob / 20); // tiny variance
     ctx.save();
-    ctx.globalAlpha = (monster.state === "dying") ? monster.fadeAlpha : 1;
-    ctx.drawImage(mImg, mx, my, mw, mh);
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = "black";
+    ctx.beginPath();
+    ctx.ellipse(
+      screenMX,
+      shadowY,
+      (mw * 0.35) * shadowScale,
+      mh * 0.15,
+      0, 0, Math.PI * 2
+    );
+    ctx.fill();
+    ctx.restore();
+
+    // Monster sprite with bobbing + breathing
+    ctx.save();
+    ctx.globalAlpha = (monster.aiState === "dying") ? monster.fadeAlpha : 1;
+    ctx.translate(screenMX, screenMY + bob);
+    ctx.scale(breathe, breathe);
+    ctx.drawImage(mImg, -mw/2, -mh/2, mw, mh);
     ctx.restore();
 
     // Red hit flash on monster (sprite-sized)
     if (monster.hitFlash > 0) {
       const alpha = (monster.hitFlash / 0.18) * 0.18; // subtle
-      drawHitFlashRect(mx, my, mw, mh, alpha);
+      const fxW = mw * breathe;
+      const fxH = mh * breathe;
+      const fxX = screenMX - fxW / 2;
+      const fxY = (screenMY + bob) - fxH / 2;
+      drawHitFlashRect(fxX, fxY, fxW, fxH, alpha);
     }
 
     // Monster HP bubble only during battle and while alive
