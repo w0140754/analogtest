@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>Mobile 2D Collision Test</title>
+<title>Collision Debug Build</title>
 
 <style>
   html, body {
     margin: 0; padding: 0;
     overflow: hidden;
-    background: black;
     touch-action: none;
+    background: black;
   }
 
   #gameCanvas {
@@ -22,19 +22,22 @@
 
   #joystick {
     position: absolute;
-    width: 120px; height: 120px;
+    width: 120px;
+    height: 120px;
     border-radius: 50%;
     background: rgba(255,255,255,0.15);
     display: none;
-    touch-action: none;
     z-index: 10;
   }
+
   #stick {
     position: absolute;
-    width: 60px; height: 60px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
     background: rgba(255,255,255,0.4);
-    left: 30px; top: 30px;
+    left: 30px;
+    top: 30px;
   }
 </style>
 </head>
@@ -44,6 +47,11 @@
 <div id="joystick"><div id="stick"></div></div>
 
 <script>
+// ========================================================
+// DEBUG MODE
+// ========================================================
+let DEBUG = true;
+
 // ========================================================
 // CANVAS
 // ========================================================
@@ -58,37 +66,37 @@ resize();
 window.addEventListener("resize", resize);
 
 // ========================================================
-// ASSETS
+// LOAD ASSETS
 // ========================================================
 const bg = new Image();
 bg.src = "background.png";
 
-const collisionImg = new Image();
-collisionImg.src = "collision.png";
+const colImg = new Image();
+colImg.src = "collision.png"; // must match bg size exactly (768x768)
 
-const frames = ["player1.png","player2.png","player3.png"].map(src => {
-  let img = new Image();
-  img.src = src;
-  return img;
+const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
+  const i = new Image();
+  i.src = src;
+  return i;
 });
 
 // ========================================================
-// COLLISION MAP
+// COLLISION MAP CANVAS
 // ========================================================
 const colCanvas = document.createElement("canvas");
 const colCtx = colCanvas.getContext("2d");
-let collisionReady = false;
+let colReady = false;
 
-collisionImg.onload = () => {
-  colCanvas.width = collisionImg.width;
-  colCanvas.height = collisionImg.height;
-  colCtx.drawImage(collisionImg, 0, 0);
-  collisionReady = true;
+colImg.onload = () => {
+  colCanvas.width = colImg.width;
+  colCanvas.height = colImg.height;
+  colCtx.drawImage(colImg, 0, 0);
+  colReady = true;
 };
 
-// Pixel check
+// Pixel check from collision map
 function isBlocked(px, py) {
-  if (!collisionReady) return false;
+  if (!colReady) return false;
 
   if (px < 0 || py < 0 || px >= colCanvas.width || py >= colCanvas.height)
     return true;
@@ -98,24 +106,24 @@ function isBlocked(px, py) {
 }
 
 // ========================================================
-// ★ SQUARE COLLISION CHECK (4 corners) ★
+// SQUARE COLLISION BOX CHECK
 // ========================================================
-function isBoxBlocked(x, y, width, height) {
-  const halfW = width / 2;
-  const halfH = height / 2;
+function isBoxBlocked(x, y, w, h) {
+  const hw = w / 2;
+  const hh = h / 2;
 
-  // corners in world coords
-  const tl = { x: x - halfW, y: y - halfH };
-  const tr = { x: x + halfW, y: y - halfH };
-  const bl = { x: x - halfW, y: y + halfH };
-  const br = { x: x + halfW, y: y + halfH };
+  const corners = [
+    {x: x - hw, y: y - hh},
+    {x: x + hw, y: y - hh},
+    {x: x - hw, y: y + hh},
+    {x: x + hw, y: y + hh},
+  ];
 
-  return (
-    isBlocked(tl.x, tl.y) ||
-    isBlocked(tr.x, tr.y) ||
-    isBlocked(bl.x, bl.y) ||
-    isBlocked(br.x, br.y)
-  );
+  for (const pt of corners) {
+    if (isBlocked(pt.x, pt.y)) return true;
+  }
+
+  return false;
 }
 
 // ========================================================
@@ -130,11 +138,11 @@ let player = {
   frameTimer: 0,
   scale: 0.25,
 
-  facingLeft: false,
   moving: false,
+  facingLeft: false,
 
-  boxW: 14,   // width of collision box
-  boxH: 10    // height of collision box (feet area)
+  boxW: 14,   // collision width (tune this)
+  boxH: 10    // collision height (tune this)
 };
 
 // ========================================================
@@ -143,17 +151,14 @@ let player = {
 let camera = { x: 0, y: 0 };
 
 function updateCamera() {
-  const cw = canvas.width;
-  const ch = canvas.height;
+  let tx = player.x - canvas.width / 2;
+  let ty = player.y - canvas.height / 2;
 
-  let tx = player.x - cw / 2;
-  let ty = player.y - ch / 2;
+  tx = Math.max(0, Math.min(tx, bg.width - canvas.width));
+  ty = Math.max(0, Math.min(ty, bg.height - canvas.height));
 
-  tx = Math.max(0, Math.min(tx, bg.width - cw));
-  ty = Math.max(0, Math.min(ty, bg.height - ch));
-
-  camera.x += (tx - camera.x) * 0.1;
-  camera.y += (ty - camera.y) * 0.1;
+  camera.x += (tx - camera.x) * 0.10;
+  camera.y += (ty - camera.y) * 0.10;
 }
 
 // ========================================================
@@ -185,20 +190,19 @@ canvas.addEventListener("touchmove", e => {
 
   let dx = t.clientX - joy.originX;
   let dy = t.clientY - joy.originY;
-
   const dist = Math.hypot(dx, dy);
   const max = 40;
 
   if (dist > max) {
-    dx = (dx / dist) * max;
-    dy = (dy / dist) * max;
+    dx *= max / dist;
+    dy *= max / dist;
   }
-
-  stick.style.left = (30 + dx) + "px";
-  stick.style.top =  (30 + dy) + "px";
 
   joy.dx = dx / max;
   joy.dy = dy / max;
+
+  stick.style.left = 30 + dx + "px";
+  stick.style.top  = 30 + dy + "px";
 });
 
 canvas.addEventListener("touchend", () => {
@@ -260,12 +264,13 @@ function update(dt) {
 }
 
 // ========================================================
-// DRAW
+// DRAW + DEBUG
 // ========================================================
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = false;
 
+  // Background
   if (bg.width > 0) {
     ctx.drawImage(
       bg,
@@ -276,6 +281,7 @@ function draw() {
     );
   }
 
+  // Player
   const img = frames[player.frame];
   const w = img.width * player.scale;
   const h = img.height * player.scale;
@@ -292,8 +298,41 @@ function draw() {
   } else {
     ctx.drawImage(img, dx, dy, w, h);
   }
-}
-</script>
 
+  // ====================================================
+  // DEBUG VISUALIZATION
+  // ====================================================
+  if (DEBUG) {
+    const cx = player.x - camera.x;
+    const cy = player.y - camera.y;
+
+    const halfW = player.boxW / 2;
+    const halfH = player.boxH / 2;
+
+    // Collision Box
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      cx - halfW,
+      cy - halfH,
+      player.boxW,
+      player.boxH
+    );
+
+    // Draw the 4 corner collision test pixels
+    ctx.fillStyle = "cyan";
+    const corners = [
+      {x: cx - halfW, y: cy - halfH},
+      {x: cx + halfW, y: cy - halfH},
+      {x: cx - halfW, y: cy + halfH},
+      {x: cx + halfW, y: cy + halfH},
+    ];
+    corners.forEach(pt => {
+      ctx.fillRect(pt.x - 2, pt.y - 2, 4, 4);
+    });
+  }
+}
+
+</script>
 </body>
 </html>
