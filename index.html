@@ -285,8 +285,8 @@ let items = [
 // MONSTER (stationary starwolf)
 // =====================================================
 let monster = {
-  x: 300,
-  y: 300,
+  x: 400,
+  y: 400,
   alive: true
 };
 
@@ -444,7 +444,7 @@ function draw() {
 
   // Monster (stationary starwolf)
   if (monster.alive) {
-    const mScale = 0.4; // adjust if needed
+    const mScale = 0.2; // adjust if needed
     const mw = monsterImg.width * mScale;
     const mh = monsterImg.height * mScale;
     const mx = monster.x - camera.x - mw / 2;
