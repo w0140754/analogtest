@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>Mobile 2D Collision Test</title>
+<title>Mobile 2D Test + UI Bar</title>
 <style>
   html, body {
     margin: 0; padding: 0;
@@ -11,12 +11,35 @@
     background: black;
     touch-action: none;
   }
+
+  /* GAME CANVAS (now 90% height) */
   #gameCanvas {
     position: absolute;
-    top: 0; left: 0;
+    top: 0;
+    left: 0;
     width: 100vw;
-    height: 100vh;
+    height: 90vh;   /* ★ gameplay only uses top 90% */
   }
+
+  /* UI BAR (fixed bottom area) */
+  #uiBar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 10vh;   /* ★ bottom 10% reserved for UI */
+    background: rgba(30, 30, 30, 0.75);
+    backdrop-filter: blur(5px);
+    border-top: 2px solid rgba(255,255,255,0.15);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-family: sans-serif;
+    font-size: 2.2vh;
+  }
+
+  /* JOYSTICK */
   #joystick {
     position: absolute;
     width: 120px; height: 120px;
@@ -25,6 +48,7 @@
     display: none;
     touch-action: none;
   }
+
   #stick {
     position: absolute;
     width: 60px; height: 60px;
@@ -36,32 +60,39 @@
 </head>
 <body>
 
+<!-- GAME CANVAS (top 90%) -->
 <canvas id="gameCanvas"></canvas>
 
+<!-- UI BAR (bottom 10%) -->
+<div id="uiBar">
+  UI BAR — buttons go here
+</div>
+
+<!-- JOYSTICK -->
 <div id="joystick"><div id="stick"></div></div>
 
 <script>
-// ========================================================
-// CANVAS
-// ========================================================
+// ==========================================
+// CANVAS ADJUSTMENT
+// ==========================================
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
 function resize() {
   canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  canvas.height = window.innerHeight * 0.90;  // ★ TOP 90%
 }
 resize();
 window.addEventListener("resize", resize);
 
-// ========================================================
+// ==========================================
 // ASSETS
-// ========================================================
+// ==========================================
 const bg = new Image();
 bg.src = "background.png";
 
 const collisionImg = new Image();
-collisionImg.src = "collision.png"; // ★ MUST MATCH background dimensions
+collisionImg.src = "collision.png";
 
 // Player sprites
 const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
@@ -70,9 +101,9 @@ const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
   return img;
 });
 
-// ========================================================
-// COLLISION MAP CANVAS (offscreen)
-// ========================================================
+// ==========================================
+// COLLISION MAP
+// ==========================================
 const colCanvas = document.createElement("canvas");
 const colCtx = colCanvas.getContext("2d");
 let collisionReady = false;
@@ -84,24 +115,17 @@ collisionImg.onload = () => {
   collisionReady = true;
 };
 
-// Returns true if the pixel is blocked
 function isBlocked(px, py) {
   if (!collisionReady) return false;
-
-  // Out of bounds = solid
-  if (px < 0 || py < 0 || px >= colCanvas.width || py >= colCanvas.height) {
-    return true;
-  }
+  if (px < 0 || py < 0 || px >= colCanvas.width || py >= colCanvas.height) return true;
 
   const data = colCtx.getImageData(px, py, 1, 1).data;
-  // If pixel is dark enough → treat as obstacle
-  const isSolid = data[0] < 50 && data[1] < 50 && data[2] < 50;
-  return isSolid;
+  return data[0] < 50 && data[1] < 50 && data[2] < 50;
 }
 
-// ========================================================
+// ==========================================
 // PLAYER
-// ========================================================
+// ==========================================
 let player = {
   x: 500,
   y: 500,
@@ -113,9 +137,9 @@ let player = {
   moving: false
 };
 
-// ========================================================
+// ==========================================
 // CAMERA
-// ========================================================
+// ==========================================
 let camera = { x: 0, y: 0 };
 
 function updateCamera() {
@@ -132,23 +156,22 @@ function updateCamera() {
   camera.y += (targetY - camera.y) * 0.1;
 }
 
-// ========================================================
+// ==========================================
 // JOYSTICK
-// ========================================================
+// ==========================================
 const joyDiv = document.getElementById("joystick");
 const stick = document.getElementById("stick");
 
 let joy = {
   active: false,
-  dx: 0,
-  dy: 0,
-  originX: 0,
-  originY: 0
+  dx: 0, dy: 0,
+  originX: 0, originY: 0
 };
 
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
   joy.active = true;
+
   joy.originX = t.clientX;
   joy.originY = t.clientY;
 
@@ -163,14 +186,14 @@ canvas.addEventListener("touchstart", e => {
 canvas.addEventListener("touchmove", e => {
   if (!joy.active) return;
   const t = e.touches[0];
+
   const dx = t.clientX - joy.originX;
   const dy = t.clientY - joy.originY;
+
   const dist = Math.hypot(dx, dy);
   const max = 40;
 
-  let ndx = dx;
-  let ndy = dy;
-
+  let ndx = dx, ndy = dy;
   if (dist > max) {
     ndx = (dx / dist) * max;
     ndy = (dy / dist) * max;
@@ -183,15 +206,15 @@ canvas.addEventListener("touchmove", e => {
   joy.dy = ndy / max;
 });
 
-canvas.addEventListener("touchend", () => {
+canvas.addEventListener("touchend", e => {
   joy.active = false;
   joy.dx = joy.dy = 0;
   joyDiv.style.display = "none";
 });
 
-// ========================================================
-// UPDATE
-// ========================================================
+// ==========================================
+// GAME LOOP
+// ==========================================
 let last = 0;
 function loop(t) {
   const dt = (t - last) / 1000;
@@ -210,20 +233,13 @@ function update(dt) {
     const nextX = player.x + joy.dx * player.speed * dt;
     const nextY = player.y + joy.dy * player.speed * dt;
 
-    // Collision check (using player center)
-    if (!isBlocked(nextX, player.y)) {
-      player.x = nextX;
-    }
-    if (!isBlocked(player.x, nextY)) {
-      player.y = nextY;
-    }
+    if (!isBlocked(nextX, player.y)) player.x = nextX;
+    if (!isBlocked(player.x, nextY)) player.y = nextY;
   }
 
-  // Facing
   if (joy.dx < -0.05) player.facingLeft = true;
   else if (joy.dx > 0.05) player.facingLeft = false;
 
-  // Animation
   if (player.moving) {
     player.frameTimer += dt;
     if (player.frameTimer > 0.15) {
@@ -231,19 +247,18 @@ function update(dt) {
       player.frameTimer = 0;
     }
   } else {
-    player.frame = 0; // idle
+    player.frame = 0;
   }
 
   updateCamera();
 }
 
-// ========================================================
+// ==========================================
 // DRAW
-// ========================================================
+// ==========================================
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // World
   if (bg.width > 0) {
     ctx.drawImage(
       bg,
@@ -254,7 +269,6 @@ function draw() {
     );
   }
 
-  // Player
   const img = frames[player.frame];
   const w = img.width * player.scale;
   const h = img.height * player.scale;
