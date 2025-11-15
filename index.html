@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-head>
+<head>
 <meta charset="UTF-8" />
 <meta name="viewport"
       content="width=device-width,
@@ -83,10 +83,10 @@ head>
     background: rgba(180,200,255,0.95);
   }
 
-  #hitButton { background: rgba(255,230,150,0.95); }
+  #hitButton   { background: rgba(255,230,150,0.95); }
   #smackButton { background: rgba(255,210,150,0.95); }
   #punchButton { background: rgba(255,190,150,0.95); }
-  #kickButton { background: rgba(255,170,150,0.95); }
+  #kickButton  { background: rgba(255,170,150,0.95); }
 
   /* Joystick */
   #joystick {
@@ -243,7 +243,11 @@ let player = {
   moving: false,
 
   hitR: 40,
-  hitOffsetY: 10
+  hitOffsetY: 10,
+
+  hpMax: 20,
+  hp: 20,
+  hitFlash: 0   // time remaining for red flash
 };
 
 // =====================================================
@@ -340,11 +344,14 @@ let monster = {
   x: 300,
   y: 300,
   alive: true,
+  hpMax: 10,
   hp: 10,
   scale: 0.30,
-  state: "idle",     // "idle" or "dying"
+  state: "idle",       // "idle" or "dying"
   fadeAlpha: 1,
-  attackFlash: 0     // seconds to show attack sprite
+  attackFlash: 0,      // seconds to show attack sprite
+  lungeOffsetX: 0,
+  lungeOffsetY: 0
 };
 
 // =====================================================
@@ -358,7 +365,6 @@ const hitBtn      = document.getElementById("hitButton");
 const smackBtn    = document.getElementById("smackButton");
 const punchBtn    = document.getElementById("punchButton");
 const kickBtn     = document.getElementById("kickButton");
-
 const fadeOverlay = document.getElementById("fadeOverlay");
 
 let currentUIMode = "default"; // "default", "blossom", "monsterChoice", "battle", "none"
@@ -372,14 +378,14 @@ function setUIMode(mode) {
   harvestBtn.style.display = (mode === "blossom") ? "inline-block" : "none";
 
   const monsterChoice = (mode === "monsterChoice");
-  fightBtn.style.display = monsterChoice ? "inline-block" : "none";
-  runBtn.style.display   = monsterChoice ? "inline-block" : "none";
+  fightBtn.style.display   = monsterChoice ? "inline-block" : "none";
+  runBtn.style.display     = monsterChoice ? "inline-block" : "none";
 
   const battle = (mode === "battle");
-  hitBtn.style.display   = battle ? "inline-block" : "none";
-  smackBtn.style.display = battle ? "inline-block" : "none";
-  punchBtn.style.display = battle ? "inline-block" : "none";
-  kickBtn.style.display  = battle ? "inline-block" : "none";
+  hitBtn.style.display     = battle ? "inline-block" : "none";
+  smackBtn.style.display   = battle ? "inline-block" : "none";
+  punchBtn.style.display   = battle ? "inline-block" : "none";
+  kickBtn.style.display    = battle ? "inline-block" : "none";
 
   if (mode === "none") {
     defaultUI.style.display  = "none";
@@ -395,15 +401,21 @@ function setUIMode(mode) {
 
 setUIMode("default");
 
-// =====================================================
-// BATTLE & RUN ACTIONS
-// =====================================================
-
-// Disable movement during battle or teleport
+// movement lock during battle or teleport
 function movementLocked() {
   return battleMode || runTeleportInProgress;
 }
 
+// Blossom harvest
+harvestBtn.addEventListener("click", () => {
+  const item = items.find(i => i.type === "blossom" && !i.harvested);
+  if (item) item.harvested = true;
+  setUIMode("default");
+});
+
+// =====================================================
+// BATTLE & RUN ACTIONS
+// =====================================================
 fightBtn.addEventListener("click", () => {
   if (!monster.alive) return;
   battleMode = true;
@@ -417,15 +429,48 @@ runBtn.addEventListener("click", () => {
   startRunTeleport();
 });
 
+function performMonsterCounterAttack() {
+  if (!monster.alive) return;
+
+  // Monster lunges toward player and deals damage
+  const dx = player.x - monster.x;
+  const dy = player.y - monster.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const LUNGE_DIST = 20;
+
+  monster.lungeOffsetX = (dx / len) * LUNGE_DIST;
+  monster.lungeOffsetY = (dy / len) * LUNGE_DIST;
+
+  monster.attackFlash = 0.2; // show attack sprite briefly
+
+  const MONSTER_DAMAGE = 2;
+  player.hp -= MONSTER_DAMAGE;
+  if (player.hp < 0) player.hp = 0;
+  player.hitFlash = 0.2; // red flash
+
+  // If player "dies", teleport them like a forced RUN and restore HP
+  if (player.hp <= 0) {
+    battleMode = false;
+    setUIMode("none");
+    startRunTeleport(() => {
+      player.hp = player.hpMax;
+    });
+  }
+}
+
 // Attack button helper
 function performAttack(damage) {
   if (!battleMode || !monster.alive) return;
 
+  // Player damages monster
   monster.hp -= damage;
-  monster.attackFlash = 0.2; // show attack sprite briefly
+  if (monster.hp < 0) monster.hp = 0;
 
-  if (monster.hp <= 0) {
-    monster.hp = 0;
+  // Monster counter-attacks instantly
+  performMonsterCounterAttack();
+
+  // If monster dies after this blow, trigger death state
+  if (monster.hp <= 0 && monster.alive) {
     monster.alive = false;
     monster.state = "dying";
     monster.fadeAlpha = 1;
@@ -434,7 +479,7 @@ function performAttack(damage) {
   }
 }
 
-// Attach attacks
+// Attach attacks to buttons
 hitBtn.addEventListener("click",   () => performAttack(2));
 smackBtn.addEventListener("click", () => performAttack(3));
 punchBtn.addEventListener("click", () => performAttack(4));
@@ -443,7 +488,7 @@ kickBtn.addEventListener("click",  () => performAttack(5));
 // =====================================================
 // RUN TELEPORT WITH FADE
 // =====================================================
-function startRunTeleport() {
+function startRunTeleport(onAfterTeleport) {
   runTeleportInProgress = true;
   fadeOverlay.style.pointerEvents = "auto";
   fadeOverlay.style.opacity = "1";
@@ -456,6 +501,10 @@ function startRunTeleport() {
     camera.x = player.x - canvas.width / 2;
     camera.y = player.y - canvas.height / 2;
     clampCameraToBg();
+
+    if (typeof onAfterTeleport === "function") {
+      onAfterTeleport();
+    }
 
     // Fade back in
     fadeOverlay.style.opacity = "0";
@@ -506,7 +555,7 @@ function update(dt) {
     player.moving = false;
   }
 
-  // Animation
+  // Player animation
   if (player.moving) {
     player.frameTimer += dt;
     if (player.frameTimer > 0.15) {
@@ -523,6 +572,12 @@ function update(dt) {
     else if (joy.dx > 0.05) player.facingLeft = false;
   }
 
+  // Player hit flash timer
+  if (player.hitFlash > 0) {
+    player.hitFlash -= dt;
+    if (player.hitFlash < 0) player.hitFlash = 0;
+  }
+
   // Monster animation timers
   if (monster.attackFlash > 0) {
     monster.attackFlash -= dt;
@@ -533,6 +588,12 @@ function update(dt) {
     monster.fadeAlpha -= dt * 1.8; // fade over ~0.55s
     if (monster.fadeAlpha < 0) monster.fadeAlpha = 0;
   }
+
+  // Lunge offset decay
+  monster.lungeOffsetX *= 0.85;
+  monster.lungeOffsetY *= 0.85;
+  if (Math.abs(monster.lungeOffsetX) < 0.01) monster.lungeOffsetX = 0;
+  if (Math.abs(monster.lungeOffsetY) < 0.01) monster.lungeOffsetY = 0;
 
   // Proximity UI logic only when not in battle or teleport
   if (!movementLocked()) {
@@ -573,6 +634,38 @@ function update(dt) {
 // =====================================================
 // DRAW
 // =====================================================
+function drawHPBubble(worldX, worldY, hp, hpMax) {
+  const screenX = worldX - camera.x;
+  const screenY = worldY - camera.y;
+
+  const text = `♥ ${hp}/${hpMax}`;
+  ctx.font = "12px sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+
+  const paddingX = 6;
+  const paddingY = 4;
+  const metrics = ctx.measureText(text);
+  const w = metrics.width + paddingX * 2;
+  const h = 18;
+
+  const x = screenX - w / 2;
+  const y = screenY - h;
+
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+  ctx.strokeStyle = "rgba(255,255,255,0.8)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#ffb3c1";
+  ctx.fillText(text, x + paddingX, y + h / 2);
+  ctx.restore();
+}
+
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -613,13 +706,20 @@ function draw() {
     const mScale = monster.scale;
     const mw = mImg.width * mScale;
     const mh = mImg.height * mScale;
-    const mx = monster.x - camera.x - mw / 2;
-    const my = monster.y - camera.y - mh / 2;
+    const worldMX = monster.x + monster.lungeOffsetX;
+    const worldMY = monster.y + monster.lungeOffsetY;
+    const mx = worldMX - camera.x - mw / 2;
+    const my = worldMY - camera.y - mh / 2;
 
     ctx.save();
     ctx.globalAlpha = (monster.state === "dying") ? monster.fadeAlpha : 1;
     ctx.drawImage(mImg, mx, my, mw, mh);
     ctx.restore();
+
+    // Monster HP bubble (just above head)
+    if (monster.alive || monster.fadeAlpha > 0) {
+      drawHPBubble(monster.x, monster.y - 60, monster.hp, monster.hpMax);
+    }
   }
 
   // Player
@@ -627,8 +727,10 @@ function draw() {
   const w = img.width * player.scale;
   const h = img.height * player.scale;
 
-  const drawX = player.x - camera.x - w/2;
-  const drawY = player.y - camera.y - h/2;
+  const worldPX = player.x;
+  const worldPY = player.y;
+  const drawX = worldPX - camera.x - w/2;
+  const drawY = worldPY - camera.y - h/2;
 
   if (player.facingLeft) {
     ctx.save();
@@ -639,6 +741,23 @@ function draw() {
   } else {
     ctx.drawImage(img, drawX, drawY, w, h);
   }
+
+  // Player red hit flash overlay
+  if (player.hitFlash > 0) {
+    const cx = worldPX - camera.x;
+    const cy = worldPY - camera.y;
+    const alpha = (player.hitFlash / 0.2) * 0.5; // fades out
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - h * 0.15, w * 0.6, h * 0.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Player HP bubble
+  drawHPBubble(player.x, player.y - 60, player.hp, player.hpMax);
 
   // Debug Hitbox
   if (DEBUG_HITBOX) {
