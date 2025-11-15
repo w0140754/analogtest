@@ -333,8 +333,8 @@ let items = [
 // MONSTER
 // =====================================================
 let monster = {
-  x: 300,
-  y: 300,
+  x: 400,
+  y: 200,
   alive: true,
   hpMax: 10,
   hp: 10,
@@ -397,7 +397,11 @@ function setUIMode(mode) {
 setUIMode("default");
 
 function movementLocked() {
-  return battleMode || runTeleportInProgress;
+  return (
+    battleMode ||
+    runTeleportInProgress ||
+    currentUIMode === "monsterChoice"
+  );
 }
 
 // Blossom harvest
