@@ -14,16 +14,14 @@
 
   #gameCanvas {
     position: absolute;
-    top: 0;
-    left: 0;
+    top: 0; left: 0;
     width: 100vw;
     height: 90vh;
   }
 
   #uiBar {
     position: absolute;
-    bottom: 0;
-    left: 0;
+    bottom: 0; left: 0;
     width: 100vw;
     height: 10vh;
     background: rgba(30,30,30,0.75);
@@ -58,11 +56,7 @@
 <body>
 
 <canvas id="gameCanvas"></canvas>
-
-<div id="uiBar">
-  UI BAR — buttons go here
-</div>
-
+<div id="uiBar">UI BAR — buttons go here</div>
 <div id="joystick"><div id="stick"></div></div>
 
 <script>
@@ -108,44 +102,34 @@ collisionImg.onload = () => {
   collisionReady = true;
 };
 
-// Returns true if pixel is blocked (black)
-function pixelBlocked(px, py) {
+// return true if pixel at world coords is blocked
+function pixelBlocked(x, y) {
   if (!collisionReady) return false;
-  if (px < 0 || py < 0 || px >= colCanvas.width || py >= colCanvas.height) return true;
-
-  const d = colCtx.getImageData(px, py, 1, 1).data;
+  if (x < 0 || y < 0 || x >= colCanvas.width || y >= colCanvas.height) return true;
+  const d = colCtx.getImageData(x, y, 1, 1).data;
   return d[0] < 50 && d[1] < 50 && d[2] < 50;
 }
 
 // ==========================================
-// HITBOX COLLISION (square)
+// CIRCLE HITBOX COLLISION
 // ==========================================
 
-// You can change these numbers any time.
-function isHitboxBlocked(worldX, worldY, boxW, boxH, offsetY = 0) {
-  const cx = worldX;
-  const cy = worldY + offsetY;
-
-  const halfW = boxW / 2;
-  const halfH = boxH / 2;
-
-  const points = [
-    { x: cx - halfW, y: cy - halfH }, // top-left
-    { x: cx + halfW, y: cy - halfH }, // top-right
-    { x: cx - halfW, y: cy + halfH }, // bottom-left
-    { x: cx + halfW, y: cy + halfH }  // bottom-right
-  ];
-
-  for (const p of points) {
-    if (pixelBlocked(p.x, p.y)) return true;
+// check several sample points around a circle
+function circleBlocked(cx, cy, radius) {
+  const NUM = 8; // number of test points around circle
+  for (let i = 0; i < NUM; i++) {
+    const angle = (i / NUM) * Math.PI * 2;
+    const px = cx + Math.cos(angle) * radius;
+    const py = cy + Math.sin(angle) * radius;
+    if (pixelBlocked(px, py)) return true;
   }
   return false;
 }
 
 // ==========================================
-// PLAYER
+// PLAYER (with circle hitbox)
 // ==========================================
-let DEBUG_HITBOX = true; // toggle on/off
+let DEBUG_HITBOX = true;
 
 let player = {
   x: 500,
@@ -153,14 +137,13 @@ let player = {
   speed: 180,
   frame: 0,
   frameTimer: 0,
-  scale: 0.20,
-  facingLeft: false,
+  scale: 0.25,
   moving: false,
+  facingLeft: false,
 
-  // ⭐ HITBOX IN REAL PIXELS (adjust freely)
-  boxW: 80,     // width of hitbox
-  boxH: 95,     // height of hitbox
-  boxOffsetY: 0  // move hitbox downward toward feet
+  // ⭐ Circle hitbox settings (pixel-based)
+  hitR: 14,         // radius of the circle
+  hitOffsetY: 10    // shift center downward so circle sits at feet
 };
 
 // ==========================================
@@ -172,14 +155,14 @@ function updateCamera() {
   const cw = canvas.width;
   const ch = canvas.height;
 
-  let targetX = player.x - cw / 2;
-  let targetY = player.y - ch / 2;
+  let tx = player.x - cw / 2;
+  let ty = player.y - ch / 2;
 
-  targetX = Math.max(0, Math.min(targetX, bg.width - cw));
-  targetY = Math.max(0, Math.min(targetY, bg.height - ch));
+  tx = Math.max(0, Math.min(tx, bg.width - cw));
+  ty = Math.max(0, Math.min(ty, bg.height - ch));
 
-  camera.x += (targetX - camera.x) * 0.1;
-  camera.y += (targetY - camera.y) * 0.1;
+  camera.x += (tx - camera.x) * 0.1;
+  camera.y += (ty - camera.y) * 0.1;
 }
 
 // ==========================================
@@ -241,7 +224,6 @@ let last = 0;
 function loop(t) {
   const dt = (t - last) / 1000;
   last = t;
-
   update(dt);
   draw();
   requestAnimationFrame(loop);
@@ -258,10 +240,14 @@ function update(dt) {
     const nextX = player.x + joy.dx * player.speed * dt;
     const nextY = player.y + joy.dy * player.speed * dt;
 
-    if (!isHitboxBlocked(nextX, player.y, player.boxW, player.boxH, player.boxOffsetY))
+    // collision using circle hitbox
+    const cx = nextX;
+    const cy = nextY + player.hitOffsetY;
+
+    if (!circleBlocked(cx, player.y + player.hitOffsetY, player.hitR))
       player.x = nextX;
 
-    if (!isHitboxBlocked(player.x, nextY, player.boxW, player.boxH, player.boxOffsetY))
+    if (!circleBlocked(player.x, cy, player.hitR))
       player.y = nextY;
   }
 
@@ -314,30 +300,28 @@ function draw() {
     ctx.drawImage(img, drawX, drawY, w, h);
   }
 
-  // ==========================
-  // DEBUG HITBOX DRAWING
-  // ==========================
+  // ==========================================
+  // DEBUG: draw circle hitbox
+  // ==========================================
   if (DEBUG_HITBOX) {
     const cx = player.x - camera.x;
-    const cy = player.y - camera.y + player.boxOffsetY;
+    const cy = player.y - camera.y + player.hitOffsetY;
 
-    const hw = player.boxW / 2;
-    const hh = player.boxH / 2;
-
-    // red box
     ctx.strokeStyle = "red";
     ctx.lineWidth = 2;
-    ctx.strokeRect(cx - hw, cy - hh, player.boxW, player.boxH);
+    ctx.beginPath();
+    ctx.arc(cx, cy, player.hitR, 0, Math.PI*2);
+    ctx.stroke();
 
-    // cyan corners
+    // Sample point markers (cyan)
     ctx.fillStyle = "cyan";
-    const corners = [
-      {x: cx - hw, y: cy - hh},
-      {x: cx + hw, y: cy - hh},
-      {x: cx - hw, y: cy + hh},
-      {x: cx + hw, y: cy + hh}
-    ];
-    corners.forEach(pt => ctx.fillRect(pt.x - 2, pt.y - 2, 4, 4));
+    const NUM = 8;
+    for (let i = 0; i < NUM; i++) {
+      const angle = i / NUM * Math.PI * 2;
+      const px = cx + Math.cos(angle) * player.hitR;
+      const py = cy + Math.sin(angle) * player.hitR;
+      ctx.fillRect(px - 2, py - 2, 4, 4);
+    }
   }
 }
 </script>
