@@ -19,10 +19,7 @@
     touch-action: none;
   }
 
-  /* =====================================================
-     GAME CANVAS — TRUE AREA ABOVE UI
-     Adjusts for mobile safe area insets
-     ===================================================== */
+  /* GAME CANVAS — area above UI */
   #gameCanvas {
     position: fixed;
     top: 0;
@@ -32,9 +29,7 @@
     display: block;
   }
 
-  /* =====================================================
-     UI BAR — FIXED TO BOTTOM ABOVE SAFE AREA
-     ===================================================== */
+  /* UI BAR — fixed at bottom */
   #uiBar {
     position: fixed;
     bottom: env(safe-area-inset-bottom);
@@ -53,19 +48,34 @@
     color: white;
     font-family: sans-serif;
     font-size: 2.2vh;
+    gap: 1.5vh;
     z-index: 9999;
   }
 
-  /* Big centered Harvest Button */
-  #harvestButton {
+  #defaultUI {
+    white-space: nowrap;
+  }
+
+  /* Buttons */
+  #harvestButton,
+  #fightButton,
+  #runButton {
     background: rgba(255,200,150,0.9);
     padding: 1vh 2.4vh;
     border-radius: 1vh;
-    font-size: 2.6vh;
+    font-size: 2.4vh;
     font-weight: bold;
     border: 2px solid white;
     color: black;
     display: none;
+  }
+
+  #fightButton {
+    background: rgba(255,120,120,0.95);
+  }
+
+  #runButton {
+    background: rgba(180,200,255,0.95);
   }
 
   /* Joystick */
@@ -98,6 +108,8 @@
 <div id="uiBar">
   <div id="defaultUI">UI BAR — buttons go here</div>
   <button id="harvestButton">HARVEST BLOSSOM</button>
+  <button id="fightButton">FIGHT</button>
+  <button id="runButton">RUN</button>
 </div>
 
 <!-- JOYSTICK -->
@@ -128,6 +140,9 @@ collisionImg.src = "collision.png";
 
 const blossomImg = new Image();
 blossomImg.src = "item_blossom.png";
+
+const monsterImg = new Image();
+monsterImg.src = "monster_starwolf_idle.png";
 
 const frames = ["player1.png","player2.png","player3.png"].map(src => {
   const i = new Image();
@@ -173,7 +188,7 @@ function circleBlocked(cx, cy, r) {
 // =====================================================
 // PLAYER
 // =====================================================
-let DEBUG_HITBOX = false;
+let DEBUG_HITBOX = false; // you said you turned it off
 
 let player = {
   x: 500,
@@ -260,25 +275,60 @@ canvas.addEventListener("touchend", () => {
 });
 
 // =====================================================
-// ITEMS
+// ITEMS (BLOSSOM)
 // =====================================================
 let items = [
   { type: "blossom", x: 250, y: 250, harvested: false }
 ];
 
 // =====================================================
-// UI BUTTON LOGIC
+// MONSTER (stationary starwolf)
 // =====================================================
-const defaultUI = document.getElementById("defaultUI");
-const harvestButton = document.getElementById("harvestButton");
+let monster = {
+  x: 300,
+  y: 300,
+  alive: true
+};
 
-harvestButton.addEventListener("click", () => {
+// =====================================================
+// UI BUTTONS
+// =====================================================
+const defaultUI   = document.getElementById("defaultUI");
+const harvestBtn  = document.getElementById("harvestButton");
+const fightBtn    = document.getElementById("fightButton");
+const runBtn      = document.getElementById("runButton");
+
+harvestBtn.addEventListener("click", () => {
   const item = items.find(i => i.type === "blossom" && !i.harvested);
   if (item) item.harvested = true;
-
-  harvestButton.style.display = "none";
-  defaultUI.style.display = "block";
+  setUIMode("default");
 });
+
+fightBtn.addEventListener("click", () => {
+  // For now: "defeat" the monster on Fight
+  if (monster.alive) {
+    monster.alive = false;
+  }
+  setUIMode("default");
+});
+
+runBtn.addEventListener("click", () => {
+  // Just close interaction for now
+  setUIMode("default");
+});
+
+// Simple UI state handling
+function setUIMode(mode) {
+  // modes: "default", "blossom", "monster"
+  defaultUI.style.display  = (mode === "default") ? "block" : "none";
+  harvestBtn.style.display = (mode === "blossom") ? "inline-block" : "none";
+  const monsterMode = (mode === "monster");
+  fightBtn.style.display   = monsterMode ? "inline-block" : "none";
+  runBtn.style.display     = monsterMode ? "inline-block" : "none";
+}
+
+// start in default mode
+setUIMode("default");
 
 // =====================================================
 // LOOP
@@ -311,7 +361,7 @@ function update(dt) {
       player.y = nextY;
   }
 
-  // Animation logic
+  // Animation
   if (player.moving) {
     player.frameTimer += dt;
     if (player.frameTimer > 0.15) {
@@ -322,32 +372,40 @@ function update(dt) {
     player.frame = 0;
   }
 
-  // Facing direction
+  // Facing
   if (joy.dx < -0.05) player.facingLeft = true;
   else if (joy.dx > 0.05) player.facingLeft = false;
 
-  // Proximity check
-  let nearBlossom = false;
-  for (const item of items) {
-    if (item.harvested) continue;
-
-    const dx = player.x - item.x;
-    const dy = player.y - item.y;
+  // Proximity checks
+  let nearMonster = false;
+  if (monster.alive) {
+    const dx = player.x - monster.x;
+    const dy = player.y - monster.y;
     const dist = Math.hypot(dx, dy);
+    if (dist < 90) nearMonster = true;
+  }
 
-    if (dist < 80) {
-      nearBlossom = true;
-      break;
+  let nearBlossom = false;
+  if (!nearMonster) { // monster has priority
+    for (const item of items) {
+      if (item.harvested) continue;
+      const dx = player.x - item.x;
+      const dy = player.y - item.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 80) {
+        nearBlossom = true;
+        break;
+      }
     }
   }
 
-  // Update UI
-  if (nearBlossom) {
-    defaultUI.style.display = "none";
-    harvestButton.style.display = "block";
+  // UI mode priority: monster > blossom > default
+  if (nearMonster) {
+    setUIMode("monster");
+  } else if (nearBlossom) {
+    setUIMode("blossom");
   } else {
-    harvestButton.style.display = "none";
-    defaultUI.style.display = "block";
+    setUIMode("default");
   }
 
   updateCamera();
@@ -368,12 +426,12 @@ function draw() {
     canvas.width, canvas.height
   );
 
-  // Items
+  // Items (blossom)
   for (const item of items) {
     if (item.harvested) continue;
 
     if (item.type === "blossom") {
-      const size = 80; // ★ bigger bloom
+      const size = 80;
       ctx.drawImage(
         blossomImg,
         item.x - camera.x - size/2,
@@ -382,6 +440,16 @@ function draw() {
         size
       );
     }
+  }
+
+  // Monster (stationary starwolf)
+  if (monster.alive) {
+    const mScale = 0.4; // adjust if needed
+    const mw = monsterImg.width * mScale;
+    const mh = monsterImg.height * mScale;
+    const mx = monster.x - camera.x - mw / 2;
+    const my = monster.y - camera.y - mh / 2;
+    ctx.drawImage(monsterImg, mx, my, mw, mh);
   }
 
   // Player
@@ -402,7 +470,7 @@ function draw() {
     ctx.drawImage(img, drawX, drawY, w, h);
   }
 
-  // Debug Hitbox
+  // Debug player hitbox (still available if you flip DEBUG_HITBOX)
   if (DEBUG_HITBOX) {
     const cx = player.x - camera.x;
     const cy = player.y - camera.y + player.hitOffsetY;
