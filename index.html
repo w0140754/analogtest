@@ -64,7 +64,7 @@ window.addEventListener("resize", resize);
 
 // =============== ASSETS ===============
 const bg = new Image();
-bg.src = "background.png"; // ★ replace with your file
+bg.src = "background.png"; // ★ your map image
 
 const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
   const img = new Image();
@@ -74,13 +74,26 @@ const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
 
 // =============== PLAYER ===============
 let player = {
-  x: window.innerWidth / 2,
-  y: window.innerHeight / 2,
-  speed: 180,
+  x: 1500,      // start somewhere not (0,0)
+  y: 1500,
+  speed: 200,
   frame: 0,
   frameTimer: 0,
-  scale: 0.35  // ★ adjust size
+  scale: 0.28  // ★ smaller player now
 };
+
+// =============== CAMERA ===============
+let camera = { x: 0, y: 0 };
+
+// Keeps camera centered but clamped to the background edges
+function updateCamera() {
+  camera.x = player.x - canvas.width / 2;
+  camera.y = player.y - canvas.height / 2;
+
+  // Clamp camera to world boundaries
+  camera.x = Math.max(0, Math.min(camera.x, bg.width - canvas.width));
+  camera.y = Math.max(0, Math.min(camera.y, bg.height - canvas.height));
+}
 
 // =============== JOYSTICK ===============
 const joyDiv = document.getElementById("joystick");
@@ -102,7 +115,6 @@ canvas.addEventListener("touchstart", e => {
   joy.originX = t.clientX;
   joy.originY = t.clientY;
 
-  // show joystick where finger touched
   joyDiv.style.left = (t.clientX - 60) + "px";
   joyDiv.style.top = (t.clientY - 60) + "px";
   joyDiv.style.display = "block";
@@ -142,23 +154,6 @@ canvas.addEventListener("touchend", () => {
   joyDiv.style.display = "none";
 });
 
-// =============== BACKGROUND DRAW (NO DISTORTION) ===============
-function drawBackground() {
-  const imgW = bg.width;
-  const imgH = bg.height;
-  const canW = canvas.width;
-  const canH = canvas.height;
-
-  const scale = Math.max(canW / imgW, canH / imgH);
-  const drawW = imgW * scale;
-  const drawH = imgH * scale;
-
-  const offsetX = (canW - drawW) / 2;
-  const offsetY = (canH - drawH) / 2;
-
-  ctx.drawImage(bg, offsetX, offsetY, drawW, drawH);
-}
-
 // =============== MAIN LOOP ===============
 let last = 0;
 function loop(t) {
@@ -173,28 +168,51 @@ function loop(t) {
 requestAnimationFrame(loop);
 
 function update(dt) {
-  // move
+  // Move player
   player.x += joy.dx * player.speed * dt;
   player.y += joy.dy * player.speed * dt;
 
-  // animate
+  // Keep inside world boundaries
+  if (bg.width > 0) {
+    player.x = Math.max(0, Math.min(player.x, bg.width));
+    player.y = Math.max(0, Math.min(player.y, bg.height));
+  }
+
+  // Animate sprite
   player.frameTimer += dt;
   if (player.frameTimer > 0.2) {
     player.frame = (player.frame + 1) % frames.length;
     player.frameTimer = 0;
   }
+
+  updateCamera();
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  drawBackground();
+  // Draw WORLD BACKGROUND (offset by camera)
+  if (bg.width > 0) {
+    ctx.drawImage(
+      bg,
+      camera.x, camera.y,                   // source top-left
+      canvas.width, canvas.height,          // source size
+      0, 0,                                 // destination top-left
+      canvas.width, canvas.height           // destination size
+    );
+  }
 
+  // Draw PLAYER (at center of screen)
   const img = frames[player.frame];
   if (img.width > 0) {
     const w = img.width * player.scale;
     const h = img.height * player.scale;
-    ctx.drawImage(img, player.x - w/2, player.y - h/2, w, h);
+    ctx.drawImage(
+      img,
+      canvas.width/2 - w/2,
+      canvas.height/2 - h/2,
+      w, h
+    );
   }
 }
 </script>
