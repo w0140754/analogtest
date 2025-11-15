@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 <title>Mobile 2D Collision Test</title>
+
 <style>
   html, body {
     margin: 0; padding: 0;
@@ -11,12 +12,15 @@
     background: black;
     touch-action: none;
   }
+
   #gameCanvas {
     position: absolute;
     top: 0; left: 0;
     width: 100vw;
     height: 100vh;
   }
+
+  /* Joystick */
   #joystick {
     position: absolute;
     width: 120px; height: 120px;
@@ -24,13 +28,16 @@
     background: rgba(255,255,255,0.15);
     display: none;
     touch-action: none;
+    z-index: 10;
   }
+
   #stick {
     position: absolute;
     width: 60px; height: 60px;
     border-radius: 50%;
     background: rgba(255,255,255,0.4);
     left: 30px; top: 30px;
+    touch-action: none;
   }
 </style>
 </head>
@@ -57,10 +64,10 @@ window.addEventListener("resize", resize);
 // ASSETS
 // ========================================================
 const bg = new Image();
-bg.src = "background.png";
+bg.src = "background.png";         // must be 768x768 for your map
 
 const collisionImg = new Image();
-collisionImg.src = "collision.png"; 
+collisionImg.src = "collision.png"; // same exact dimensions
 
 const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
   const img = new Image();
@@ -69,7 +76,7 @@ const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
 });
 
 // ========================================================
-// COLLISION MAP CANVAS
+// COLLISION MAP
 // ========================================================
 const colCanvas = document.createElement("canvas");
 const colCtx = colCanvas.getContext("2d");
@@ -82,7 +89,7 @@ collisionImg.onload = () => {
   collisionReady = true;
 };
 
-// Basic pixel-block check
+// single-pixel collision
 function isBlocked(px, py) {
   if (!collisionReady) return false;
 
@@ -94,14 +101,17 @@ function isBlocked(px, py) {
 }
 
 // ========================================================
-// ★★ NEW — CIRCLE COLLISION CHECK ★★
+// ★ FOOT-BASED + RADIUS COLLISION ★
 // ========================================================
-function isBlockedRadius(x, y, radius = 12) {
-  const steps = 12; 
+function isBlockedFootRadius(x, y, radius, footOffset) {
+  const fx = x;
+  const fy = y + footOffset;  // only collide at FEET
+
+  const steps = 12;
   for (let i = 0; i < steps; i++) {
     const angle = (Math.PI * 2 / steps) * i;
-    const px = x + Math.cos(angle) * radius;
-    const py = y + Math.sin(angle) * radius;
+    const px = fx + Math.cos(angle) * radius;
+    const py = fy + Math.sin(angle) * radius;
 
     if (isBlocked(px, py)) return true;
   }
@@ -115,12 +125,17 @@ let player = {
   x: 500,
   y: 500,
   speed: 180,
+
   frame: 0,
   frameTimer: 0,
   scale: 0.25,
+
   facingLeft: false,
   moving: false,
-  radius: 12   // ★ radius used for collision
+
+  // FOOT COLLISION SETTINGS
+  radius: 10,        // collision circle radius
+  footOffset: 12     // distance from center to feet (in world px)
 };
 
 // ========================================================
@@ -132,14 +147,14 @@ function updateCamera() {
   const cw = canvas.width;
   const ch = canvas.height;
 
-  let targetX = player.x - cw / 2;
-  let targetY = player.y - ch / 2;
+  let tx = player.x - cw / 2;
+  let ty = player.y - ch / 2;
 
-  targetX = Math.max(0, Math.min(targetX, bg.width - cw));
-  targetY = Math.max(0, Math.min(targetY, bg.height - ch));
+  tx = Math.max(0, Math.min(tx, bg.width - cw));
+  ty = Math.max(0, Math.min(ty, bg.height - ch));
 
-  camera.x += (targetX - camera.x) * 0.1;
-  camera.y += (targetY - camera.y) * 0.1;
+  camera.x += (tx - camera.x) * 0.1;
+  camera.y += (ty - camera.y) * 0.1;
 }
 
 // ========================================================
@@ -148,11 +163,16 @@ function updateCamera() {
 const joyDiv = document.getElementById("joystick");
 const stick = document.getElementById("stick");
 
-let joy = { active:false, dx:0, dy:0, originX:0, originY:0 };
+let joy = {
+  active: false,
+  dx: 0, dy: 0,
+  originX: 0, originY: 0
+};
 
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
   joy.active = true;
+
   joy.originX = t.clientX;
   joy.originY = t.clientY;
 
@@ -167,6 +187,7 @@ canvas.addEventListener("touchstart", e => {
 canvas.addEventListener("touchmove", e => {
   if (!joy.active) return;
   const t = e.touches[0];
+
   let dx = t.clientX - joy.originX;
   let dy = t.clientY - joy.originY;
   const dist = Math.hypot(dx, dy);
@@ -177,11 +198,11 @@ canvas.addEventListener("touchmove", e => {
     dy = dy / dist * max;
   }
 
-  stick.style.left = (30 + dx) + "px";
-  stick.style.top = (30 + dy) + "px";
-
   joy.dx = dx / max;
   joy.dy = dy / max;
+
+  stick.style.left = (30 + dx) + "px";
+  stick.style.top = (30 + dy) + "px";
 });
 
 canvas.addEventListener("touchend", () => {
@@ -214,11 +235,11 @@ function update(dt) {
     const nextX = player.x + joy.dx * player.speed * dt;
     const nextY = player.y + joy.dy * player.speed * dt;
 
-    // ★ Use circular collision instead of point collision
-    if (!isBlockedRadius(nextX, player.y, player.radius)) {
+    // ★ FOOT COLLISION APPLIED HERE ★
+    if (!isBlockedFootRadius(nextX, player.y, player.radius, player.footOffset)) {
       player.x = nextX;
     }
-    if (!isBlockedRadius(player.x, nextY, player.radius)) {
+    if (!isBlockedFootRadius(player.x, nextY, player.radius, player.footOffset)) {
       player.y = nextY;
     }
   }
@@ -233,7 +254,7 @@ function update(dt) {
       player.frameTimer = 0;
     }
   } else {
-    player.frame = 0;
+    player.frame = 0; // idle
   }
 
   updateCamera();
@@ -246,7 +267,7 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.imageSmoothingEnabled = false;
 
-  // Background (cropped to camera)
+  // Background (cropped)
   if (bg.width > 0) {
     ctx.drawImage(
       bg,
@@ -257,10 +278,11 @@ function draw() {
     );
   }
 
-  // Player
+  // Draw player
   const img = frames[player.frame];
   const w = img.width * player.scale;
   const h = img.height * player.scale;
+
   const dx = player.x - camera.x - w/2;
   const dy = player.y - camera.y - h/2;
 
@@ -275,5 +297,6 @@ function draw() {
   }
 }
 </script>
+
 </body>
 </html>
