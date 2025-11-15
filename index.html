@@ -1,140 +1,55 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Floating Joystick Test</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Mobile 2D Layout Test</title>
 <style>
-  body {
-    margin: 0;
+  html, body {
+    margin: 0; padding: 0;
     overflow: hidden;
-    background: #222;
-    touch-action: none; /* Prevent scrolling while touching */
+    touch-action: none;
+    background: #000;
   }
 
-  /* Player */
-  #player {
+  #gameCanvas {
     position: absolute;
-    width: 50px;
-    height: 50px;
-    background: tomato;
-    border-radius: 10px;
-    left: calc(50% - 25px);
-    top: calc(50% - 25px);
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
   }
 
-  /* Joystick Outer Ring */
-  #joyOuter {
+  /* JOYSTICK */
+  #joystick {
     position: absolute;
+    bottom: 10vh;
+    left: 10vw;
     width: 120px;
     height: 120px;
-    border: 4px solid rgba(255,255,255,0.4);
     border-radius: 50%;
-    display: none;
-    pointer-events: none;
+    background: rgba(255,255,255,0.15);
+    touch-action: none;
   }
 
-  /* Joystick Inner Dot */
-  #joyInner {
+  #stick {
     position: absolute;
     width: 60px;
     height: 60px;
-    background: rgba(255,255,255,0.7);
+    background: rgba(255,255,255,0.35);
     border-radius: 50%;
-    left: 30px;
     top: 30px;
-    pointer-events: none;
+    left: 30px;
   }
 </style>
 </head>
 <body>
 
-<div id="player"></div>
-<div id="joyOuter">
-  <div id="joyInner"></div>
+<canvas id="gameCanvas"></canvas>
+
+<div id="joystick">
+  <div id="stick"></div>
 </div>
 
-<script>
-const player = document.getElementById("player");
-const joyOuter = document.getElementById("joyOuter");
-const joyInner = document.getElementById("joyInner");
-
-let joyActive = false;
-let originX = 0, originY = 0;
-let moveX = 0, moveY = 0;
-
-function updatePlayer() {
-  const speed = 3;
-
-  let px = player.offsetLeft + moveX * speed;
-  let py = player.offsetTop + moveY * speed;
-
-  player.style.left = px + "px";
-  player.style.top = py + "px";
-
-  requestAnimationFrame(updatePlayer);
-}
-updatePlayer();
-
-// Helper to get touches or mouse
-function getPos(e){
-  if(e.touches) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  return { x: e.clientX, y: e.clientY };
-}
-
-// Start joystick
-function start(e){
-  const pos = getPos(e);
-  originX = pos.x;
-  originY = pos.y;
-  joyOuter.style.left = (originX - 60) + "px";
-  joyOuter.style.top = (originY - 60) + "px";
-  joyOuter.style.display = "block";
-  joyActive = true;
-}
-
-// Move joystick
-function move(e){
-  if(!joyActive) return;
-  const pos = getPos(e);
-
-  const dx = pos.x - originX;
-  const dy = pos.y - originY;
-
-  const dist = Math.sqrt(dx*dx + dy*dy);
-  const max = 50; // inner dot radius limit
-
-  let clampedX = dx;
-  let clampedY = dy;
-
-  if(dist > max){
-    clampedX = (dx / dist) * max;
-    clampedY = (dy / dist) * max;
-  }
-
-  joyInner.style.left = (clampedX + 30) + "px";
-  joyInner.style.top = (clampedY + 30) + "px";
-
-  moveX = clampedX / max;
-  moveY = clampedY / max;
-}
-
-// End joystick
-function end(){
-  joyActive = false;
-  joyOuter.style.display = "none";
-  moveX = 0;
-  moveY = 0;
-}
-
-// Events
-document.addEventListener("mousedown", start);
-document.addEventListener("mousemove", move);
-document.addEventListener("mouseup", end);
-
-document.addEventListener("touchstart", start);
-document.addEventListener("touchmove", move);
-document.addEventListener("touchend", end);
-</script>
-
+<script src="game.js"></script>
 </body>
 </html>
