@@ -247,7 +247,10 @@ let player = {
 
   hpMax: 20,
   hp: 20,
-  hitFlash: 0   // time remaining for red flash
+  hitFlash: 0,     // red flash when taking damage
+  attackFlash: 0,  // white-ish flash when attacking
+  lungeOffsetX: 0,
+  lungeOffsetY: 0
 };
 
 // =====================================================
@@ -350,6 +353,7 @@ let monster = {
   state: "idle",       // "idle" or "dying"
   fadeAlpha: 1,
   attackFlash: 0,      // seconds to show attack sprite
+  hurtFlash: 0,        // brief hurt sprite
   lungeOffsetX: 0,
   lungeOffsetY: 0
 };
@@ -369,6 +373,7 @@ const fadeOverlay = document.getElementById("fadeOverlay");
 
 let currentUIMode = "default"; // "default", "blossom", "monsterChoice", "battle", "none"
 let battleMode = false;
+let battleBusy = false;        // turn-based lock
 let runTeleportInProgress = false;
 
 function setUIMode(mode) {
@@ -419,18 +424,32 @@ harvestBtn.addEventListener("click", () => {
 fightBtn.addEventListener("click", () => {
   if (!monster.alive) return;
   battleMode = true;
+  battleBusy = false;
   setUIMode("battle");
 });
 
 runBtn.addEventListener("click", () => {
   if (!monster.alive) return;
   battleMode = false;
+  battleBusy = false;
   setUIMode("none");
+  resetLunges();
   startRunTeleport();
 });
 
+function resetLunges() {
+  player.lungeOffsetX = 0;
+  player.lungeOffsetY = 0;
+  monster.lungeOffsetX = 0;
+  monster.lungeOffsetY = 0;
+}
+
+// Monster counter-attack (called after delay)
 function performMonsterCounterAttack() {
-  if (!monster.alive) return;
+  if (!monster.alive || !battleMode) {
+    battleBusy = false;
+    return;
+  }
 
   // Monster lunges toward player and deals damage
   const dx = player.x - monster.x;
@@ -451,32 +470,83 @@ function performMonsterCounterAttack() {
   // If player "dies", teleport them like a forced RUN and restore HP
   if (player.hp <= 0) {
     battleMode = false;
+    battleBusy = false;
     setUIMode("none");
+    resetLunges();
     startRunTeleport(() => {
       player.hp = player.hpMax;
     });
+  } else {
+    // Monster returns to idle after attack
+    setTimeout(() => {
+      monster.attackFlash = 0;
+      resetLunges();
+      // End of monster's turn: player can act again if still in battle
+      if (battleMode) {
+        battleBusy = false;
+        setUIMode("battle");
+      }
+    }, 200);
   }
 }
 
-// Attack button helper
+// Attack button helper (player's turn)
 function performAttack(damage) {
-  if (!battleMode || !monster.alive) return;
+  if (!battleMode || !monster.alive || battleBusy) return;
 
-  // Player damages monster
+  battleBusy = true;
+  setUIMode("battle"); // ensure only battle buttons visible
+
+  // Player lunges 15px toward monster and flashes
+  const dx = monster.x - player.x;
+  const dy = monster.y - player.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const LUNGE_DIST = 15;
+
+  player.lungeOffsetX = (dx / len) * LUNGE_DIST;
+  player.lungeOffsetY = (dy / len) * LUNGE_DIST;
+  player.attackFlash = 0.15;
+
+  // Apply damage to monster immediately
   monster.hp -= damage;
   if (monster.hp < 0) monster.hp = 0;
+  monster.hurtFlash = 0.15;
 
-  // Monster counter-attacks instantly
-  performMonsterCounterAttack();
-
-  // If monster dies after this blow, trigger death state
-  if (monster.hp <= 0 && monster.alive) {
-    monster.alive = false;
-    monster.state = "dying";
-    monster.fadeAlpha = 1;
-    battleMode = false;
-    setUIMode("default");
+  // Check for monster death
+  if (monster.hp <= 0) {
+    monster.hp = 0;
+    if (monster.alive) {
+      monster.alive = false;
+      monster.state = "dying";
+      monster.fadeAlpha = 1;
+    }
+    // End battle after brief delay so hurt anim shows
+    setTimeout(() => {
+      battleMode = false;
+      battleBusy = false;
+      setUIMode("default");
+      resetLunges();
+    }, 250);
+    return;
   }
+
+  // After player attack animation, reset lunge and schedule monster counter
+  setTimeout(() => {
+    player.lungeOffsetX = 0;
+    player.lungeOffsetY = 0;
+    player.attackFlash = 0;
+    monster.hurtFlash = 0;
+
+    if (!battleMode || !monster.alive) {
+      battleBusy = false;
+      return;
+    }
+
+    // Small delay before monster counter-attacks
+    setTimeout(() => {
+      performMonsterCounterAttack();
+    }, 200);
+  }, 180);
 }
 
 // Attach attacks to buttons
@@ -572,16 +642,29 @@ function update(dt) {
     else if (joy.dx > 0.05) player.facingLeft = false;
   }
 
-  // Player hit flash timer
+  // Player flashes & lunges decay
   if (player.hitFlash > 0) {
     player.hitFlash -= dt;
     if (player.hitFlash < 0) player.hitFlash = 0;
   }
+  if (player.attackFlash > 0) {
+    player.attackFlash -= dt;
+    if (player.attackFlash < 0) player.attackFlash = 0;
+  }
+
+  player.lungeOffsetX *= 0.85;
+  player.lungeOffsetY *= 0.85;
+  if (Math.abs(player.lungeOffsetX) < 0.01) player.lungeOffsetX = 0;
+  if (Math.abs(player.lungeOffsetY) < 0.01) player.lungeOffsetY = 0;
 
   // Monster animation timers
   if (monster.attackFlash > 0) {
     monster.attackFlash -= dt;
     if (monster.attackFlash < 0) monster.attackFlash = 0;
+  }
+  if (monster.hurtFlash > 0) {
+    monster.hurtFlash -= dt;
+    if (monster.hurtFlash < 0) monster.hurtFlash = 0;
   }
 
   if (!monster.alive && monster.state === "dying") {
@@ -589,7 +672,7 @@ function update(dt) {
     if (monster.fadeAlpha < 0) monster.fadeAlpha = 0;
   }
 
-  // Lunge offset decay
+  // Monster lunge offset decay
   monster.lungeOffsetX *= 0.85;
   monster.lungeOffsetY *= 0.85;
   if (Math.abs(monster.lungeOffsetX) < 0.01) monster.lungeOffsetX = 0;
@@ -699,6 +782,8 @@ function draw() {
     let mImg = monsterIdleImg;
     if (monster.state === "dying") {
       mImg = monsterHurtImg;
+    } else if (monster.hurtFlash > 0) {
+      mImg = monsterHurtImg;
     } else if (monster.attackFlash > 0) {
       mImg = monsterAttackImg;
     }
@@ -716,8 +801,8 @@ function draw() {
     ctx.drawImage(mImg, mx, my, mw, mh);
     ctx.restore();
 
-    // Monster HP bubble (just above head)
-    if (monster.alive || monster.fadeAlpha > 0) {
+    // Monster HP bubble only during battle
+    if (battleMode && monster.alive) {
       drawHPBubble(monster.x, monster.y - 60, monster.hp, monster.hpMax);
     }
   }
@@ -727,8 +812,8 @@ function draw() {
   const w = img.width * player.scale;
   const h = img.height * player.scale;
 
-  const worldPX = player.x;
-  const worldPY = player.y;
+  const worldPX = player.x + player.lungeOffsetX;
+  const worldPY = player.y + player.lungeOffsetY;
   const drawX = worldPX - camera.x - w/2;
   const drawY = worldPY - camera.y - h/2;
 
@@ -742,11 +827,23 @@ function draw() {
     ctx.drawImage(img, drawX, drawY, w, h);
   }
 
-  // Player red hit flash overlay
+  // Player flashes (attack + hit)
+  const cx = worldPX - camera.x;
+  const cy = worldPY - camera.y;
+
+  if (player.attackFlash > 0) {
+    const alpha = (player.attackFlash / 0.15) * 0.4;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - h * 0.15, w * 0.6, h * 0.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   if (player.hitFlash > 0) {
-    const cx = worldPX - camera.x;
-    const cy = worldPY - camera.y;
-    const alpha = (player.hitFlash / 0.2) * 0.5; // fades out
+    const alpha = (player.hitFlash / 0.2) * 0.5;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.fillStyle = "red";
@@ -756,25 +853,27 @@ function draw() {
     ctx.restore();
   }
 
-  // Player HP bubble
-  drawHPBubble(player.x, player.y - 60, player.hp, player.hpMax);
+  // Player HP bubble only during battle
+  if (battleMode) {
+    drawHPBubble(player.x, player.y - 60, player.hp, player.hpMax);
+  }
 
   // Debug Hitbox
   if (DEBUG_HITBOX) {
-    const cx = player.x - camera.x;
-    const cy = player.y - camera.y + player.hitOffsetY;
+    const c2x = player.x - camera.x;
+    const c2y = player.y - camera.y + player.hitOffsetY;
 
     ctx.strokeStyle = "red";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(cx, cy, player.hitR, 0, Math.PI * 2);
+    ctx.arc(c2x, c2y, player.hitR, 0, Math.PI * 2);
     ctx.stroke();
 
     ctx.fillStyle = "cyan";
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
-      const px = cx + Math.cos(a) * player.hitR;
-      const py = cy + Math.sin(a) * player.hitR;
+      const px = c2x + Math.cos(a) * player.hitR;
+      const py = c2y + Math.sin(a) * player.hitR;
       ctx.fillRect(px - 2, py - 2, 4, 4);
     }
   }
