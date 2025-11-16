@@ -7,7 +7,7 @@
                initial-scale=1.0,
                viewport-fit=cover,
                user-scalable=no" />
-<title>Mobile 2D Game</title>
+<title>Innerworld</title>
 
 <style>
   html, body {
@@ -17,9 +17,10 @@
     overflow: hidden;
     background: black;
     touch-action: none;
+    font-family: sans-serif;
   }
 
-  /* GAME CANVAS — top ~90% */
+  /* GAME CANVAS — area above bottom button region */
   #gameCanvas {
     position: fixed;
     top: 0;
@@ -29,7 +30,7 @@
     display: block;
   }
 
-  /* Floating bottom UI buttons */
+  /* Floating bottom UI buttons (no bar) */
   #uiButtons {
     position: fixed;
     bottom: calc(1.5vh + env(safe-area-inset-bottom));
@@ -41,7 +42,6 @@
     gap: 1.5vh;
     z-index: 9999;
     pointer-events: none; /* children handle clicks */
-    font-family: sans-serif;
     font-size: 2.2vh;
     color: white;
   }
@@ -51,6 +51,7 @@
     pointer-events: auto;
   }
 
+  /* Buttons */
   .ui-btn {
     background: rgba(255,200,150,0.95);
     padding: 1vh 2.4vh;
@@ -64,14 +65,20 @@
     pointer-events: auto;
   }
 
-  #fightButton { background: rgba(255,120,120,0.95); }
-  #runButton   { background: rgba(180,200,255,0.95); }
+  #fightButton {
+    background: rgba(255,120,120,0.95);
+  }
+
+  #runButton {
+    background: rgba(180,200,255,0.95);
+  }
 
   #hitButton   { background: rgba(255,230,150,0.95); }
   #smackButton { background: rgba(255,210,150,0.95); }
   #punchButton { background: rgba(255,190,150,0.95); }
   #kickButton  { background: rgba(255,170,150,0.95); }
 
+  /* Joystick */
   #joystick {
     position: absolute;
     width: 120px; height: 120px;
@@ -90,6 +97,7 @@
     left: 30px; top: 30px;
   }
 
+  /* Fade overlay for RUN teleport / exit */
   #fadeOverlay {
     position: fixed;
     inset: 0;
@@ -104,34 +112,98 @@
 
 <body>
 
+<!-- GAME AREA -->
 <canvas id="gameCanvas"></canvas>
 
+<!-- FLOATING BOTTOM UI BUTTONS -->
 <div id="uiButtons">
-  <div id="defaultUI">UI — walk up to things…</div>
+  <div id="defaultUI">Walk up to things…</div>
 
   <button id="harvestButton" class="ui-btn">HARVEST BLOSSOM</button>
 
+  <!-- Monster choice -->
   <button id="fightButton" class="ui-btn">FIGHT</button>
   <button id="runButton"   class="ui-btn">RUN</button>
 
+  <!-- Battle buttons -->
   <button id="hitButton"   class="ui-btn">HIT</button>
   <button id="smackButton" class="ui-btn">SMACK</button>
   <button id="punchButton" class="ui-btn">PUNCH</button>
   <button id="kickButton"  class="ui-btn">KICK</button>
+
+  <!-- Exit back to overworld -->
   <button id="exitToMapButton" class="ui-btn">EXIT TO MAP</button>
 </div>
 
+<!-- JOYSTICK -->
 <div id="joystick"><div id="stick"></div></div>
+
+<!-- FADE OVERLAY -->
 <div id="fadeOverlay"></div>
 
 <script>
+// =====================================================
+// SHARED SAVE SYSTEM (matches outerworld index.html)
+// =====================================================
+const SAVE_KEY = "myGameSave";
 
-let game = loadGame();
-let { x, y } = game.player.currentTile;
-let tile = game.world[y][x];
+function loadGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn("Failed to load save:", e);
+    return null;
+  }
+}
 
-      
-// ===== Canvas =====
+function saveGame(game) {
+  localStorage.setItem(SAVE_KEY, JSON.stringify(game));
+}
+
+// Load current game + tile
+const game = loadGame();
+let currentTile = null;
+let tileBiome = "Plains";
+let tileRarity = "common";
+
+if (game && game.world && game.player && game.player.currentTile) {
+  const { x, y } = game.player.currentTile;
+  if (game.world[y] && game.world[y][x]) {
+    currentTile = game.world[y][x];
+    if (currentTile.biome) tileBiome = currentTile.biome;
+    if (currentTile.rarity) tileRarity = currentTile.rarity;
+  }
+}
+
+// Normalise biome/rarity into filenames
+function getInnerworldAssetNames(biome, rarity) {
+  let biomeKey = (biome || "Plains").toLowerCase();
+  let rarityKey = (rarity || "common").toLowerCase();
+
+  // Fallbacks for "Home" or "empty" etc.
+  if (biomeKey === "home" || biomeKey === "empty") {
+    biomeKey = "plains";
+    if (rarityKey === "special") {
+      // If you eventually add inner_home_special you can change this;
+      // for now we use plains_common as a safe default
+      rarityKey = "common";
+    }
+  }
+
+  const bgName  = `inner_${biomeKey}_${rarityKey}.png`;
+  const colName = `inner_${biomeKey}_${rarityKey}_collision.png`;
+
+  return { bgName, colName };
+}
+
+const { bgName, colName } = getInnerworldAssetNames(tileBiome, tileRarity);
+console.log("Loading innerworld assets:", bgName, colName);
+
+// =====================================================
+// CANVAS
+// =====================================================
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -142,14 +214,16 @@ function resize() {
 resize();
 window.addEventListener("resize", resize);
 
-let currentTime = 0;
+let currentTime = 0; // for bobbing / breathing
 
-// ===== Assets =====
+// =====================================================
+// ASSETS
+// =====================================================
 const bg = new Image();
-bg.src = "background.png";
+bg.src = bgName; // biome+rarity-specific background
 
 const collisionImg = new Image();
-collisionImg.src = "collision.png";
+collisionImg.src = colName; // biome+rarity-specific collision map
 
 const blossomImg = new Image();
 blossomImg.src = "item_blossom.png";
@@ -169,7 +243,9 @@ const frames = ["player1.png","player2.png","player3.png"].map(src => {
   return i;
 });
 
-// ===== Collision map =====
+// =====================================================
+// COLLISION MAP
+// =====================================================
 const colCanvas = document.createElement("canvas");
 const colCtx = colCanvas.getContext("2d");
 let collisionReady = false;
@@ -188,18 +264,21 @@ function pixelBlocked(x, y) {
   return d[0] < 50 && d[1] < 50 && d[2] < 50;
 }
 
+// Circle-based collision probe
 function circleBlocked(cx, cy, r) {
   const N = 10;
   for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2;
-    const px = cx + Math.cos(a) * r;
-    const py = cy + Math.sin(a) * r;
+    const angle = (i / N) * Math.PI * 2;
+    const px = cx + Math.cos(angle) * r;
+    const py = cy + Math.sin(angle) * r;
     if (pixelBlocked(px, py)) return true;
   }
   return false;
 }
 
-// ===== Player =====
+// =====================================================
+// PLAYER
+// =====================================================
 let DEBUG_HITBOX = false;
 
 const START_X = 500;
@@ -214,16 +293,20 @@ let player = {
   scale: 0.20,
   facingLeft: false,
   moving: false,
+
   hitR: 40,
   hitOffsetY: 10,
+
   hpMax: 20,
   hp: 20,
-  hitFlash: 0,
+  hitFlash: 0,    // red flash timer when taking damage
   lungeOffsetX: 0,
   lungeOffsetY: 0
 };
 
-// ===== Camera =====
+// =====================================================
+// CAMERA
+// =====================================================
 let camera = { x: 0, y: 0 };
 
 function clampCameraToBg() {
@@ -241,26 +324,34 @@ function clampCameraToBg() {
 function updateCamera() {
   const cw = canvas.width;
   const ch = canvas.height;
-  const tx = player.x - cw / 2;
-  const ty = player.y - ch / 2;
+
+  let tx = player.x - cw / 2;
+  let ty = player.y - ch / 2;
+
   camera.x += (tx - camera.x) * 0.1;
   camera.y += (ty - camera.y) * 0.1;
   clampCameraToBg();
 }
 
-// ===== Joystick =====
+// =====================================================
+// JOYSTICK
+// =====================================================
 const joyDiv = document.getElementById("joystick");
 const stick = document.getElementById("stick");
+
 let joy = { active:false, dx:0, dy:0, originX:0, originY:0 };
 
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
   joy.active = true;
+
   joy.originX = t.clientX;
   joy.originY = t.clientY;
+
   joyDiv.style.left = (t.clientX - 60) + "px";
   joyDiv.style.top  = (t.clientY - 60) + "px";
   joyDiv.style.display = "block";
+
   stick.style.left = "30px";
   stick.style.top  = "30px";
 });
@@ -268,17 +359,21 @@ canvas.addEventListener("touchstart", e => {
 canvas.addEventListener("touchmove", e => {
   if (!joy.active) return;
   const t = e.touches[0];
+
   const dx = t.clientX - joy.originX;
   const dy = t.clientY - joy.originY;
   const dist = Math.hypot(dx, dy);
   const max = 40;
+
   let ndx = dx, ndy = dy;
   if (dist > max) {
     ndx = (dx / dist) * max;
     ndy = (dy / dist) * max;
   }
+
   stick.style.left = (30 + ndx) + "px";
   stick.style.top  = (30 + ndy) + "px";
+
   joy.dx = ndx / max;
   joy.dy = ndy / max;
 });
@@ -289,12 +384,16 @@ canvas.addEventListener("touchend", () => {
   joyDiv.style.display = "none";
 });
 
-// ===== Items =====
+// =====================================================
+// ITEMS (BLOSSOM — still hardcoded for now)
+// =====================================================
 let items = [
   { type: "blossom", x: 250, y: 250, harvested: false }
 ];
 
-// ===== Monster =====
+// =====================================================
+// MONSTER (roaming + bobbing + breathing, no shadow)
+// =====================================================
 let monster = {
   x: 400,
   y: 200,
@@ -302,13 +401,17 @@ let monster = {
   hpMax: 10,
   hp: 10,
   scale: 0.30,
-  state: "idle",   // visual: idle/attack/dying
-  aiState: "roam", // logic: roam/pause/aggro/battle/dying
+
+  state: "idle",       // visual: "idle", "attack", "dying"
+  aiState: "roam",     // logic: "roam", "pause", "aggro", "battle", "dying"
   fadeAlpha: 1,
-  hitFlash: 0,
+
+  hitFlash: 0,         // red flash timer when taking damage
   lungeOffsetX: 0,
   lungeOffsetY: 0,
   facingLeft: false,
+
+  // roaming parameters
   roamSpeed: 40,
   roamDirX: 1,
   roamDirY: 0,
@@ -321,18 +424,23 @@ function startMonsterRoam() {
   const angle = Math.random() * Math.PI * 2;
   monster.roamDirX = Math.cos(angle);
   monster.roamDirY = Math.sin(angle);
-  monster.roamTimer = 0.8 + Math.random() * 1.2;
+  monster.roamTimer = 0.8 + Math.random() * 1.2; // 0.8–2.0s
+
+  // Update facing based on overall direction
   if (monster.roamDirX < -0.1) monster.facingLeft = true;
   else if (monster.roamDirX > 0.1) monster.facingLeft = false;
 }
 
 function startMonsterPause() {
   monster.aiState = "pause";
-  monster.pauseTimer = 0.7 + Math.random() * 0.8;
+  monster.pauseTimer = 0.7 + Math.random() * 0.8; // 0.7–1.5s
 }
+
 startMonsterRoam();
 
-// ===== UI & modes =====
+// =====================================================
+// UI BUTTONS & MODES
+// =====================================================
 const defaultUI   = document.getElementById("defaultUI");
 const harvestBtn  = document.getElementById("harvestButton");
 const fightBtn    = document.getElementById("fightButton");
@@ -341,47 +449,29 @@ const hitBtn      = document.getElementById("hitButton");
 const smackBtn    = document.getElementById("smackButton");
 const punchBtn    = document.getElementById("punchButton");
 const kickBtn     = document.getElementById("kickButton");
+const exitBtn     = document.getElementById("exitToMapButton");
 const fadeOverlay = document.getElementById("fadeOverlay");
 
-let currentUIMode = "default"; // default | blossom | monsterChoice | battle | none
+let currentUIMode = "default"; // "default", "blossom", "monsterChoice", "battle", "none"
 let battleMode = false;
-let battleBusy = false;
+let battleBusy = false;        // turn-based lock
 let runTeleportInProgress = false;
 
-
-const exitToMapButton = document.getElementById("exitToMapButton");
-
-exitToMapButton.addEventListener("click", () => {
-  fadeOverlay.style.pointerEvents = "auto";
-  fadeOverlay.style.opacity = "1";
-
-  setTimeout(() => {
-    // Optional: you can pass the tile type later like this:
-    // window.location.href = "outerworld.html?from=forest";
-
-    window.location.href = "outerworld.html";
-  }, 400);
-});
-
-
-      
 function setUIMode(mode) {
-      
   currentUIMode = mode;
 
-  exitToMapButton.style.display = (battleMode ? "none" : "inline-block");
   defaultUI.style.display  = (mode === "default") ? "block" : "none";
   harvestBtn.style.display = (mode === "blossom") ? "inline-block" : "none";
 
   const monsterChoice = (mode === "monsterChoice");
-  fightBtn.style.display = monsterChoice ? "inline-block" : "none";
-  runBtn.style.display   = monsterChoice ? "inline-block" : "none";
+  fightBtn.style.display   = monsterChoice ? "inline-block" : "none";
+  runBtn.style.display     = monsterChoice ? "inline-block" : "none";
 
   const battle = (mode === "battle");
-  hitBtn.style.display   = battle ? "inline-block" : "none";
-  smackBtn.style.display = battle ? "inline-block" : "none";
-  punchBtn.style.display = battle ? "inline-block" : "none";
-  kickBtn.style.display  = battle ? "inline-block" : "none";
+  hitBtn.style.display     = battle ? "inline-block" : "none";
+  smackBtn.style.display   = battle ? "inline-block" : "none";
+  punchBtn.style.display   = battle ? "inline-block" : "none";
+  kickBtn.style.display    = battle ? "inline-block" : "none";
 
   if (mode === "none") {
     defaultUI.style.display  = "none";
@@ -393,9 +483,14 @@ function setUIMode(mode) {
     punchBtn.style.display   = "none";
     kickBtn.style.display    = "none";
   }
+
+  // EXIT button is always visible outside battle (you can tweak this)
+  exitBtn.style.display = battle ? "none" : "inline-block";
 }
+
 setUIMode("default");
 
+// movement lock: during battle, teleport, OR when FIGHT/RUN is up
 function movementLocked() {
   return (
     battleMode ||
@@ -404,17 +499,32 @@ function movementLocked() {
   );
 }
 
-// Blossom
+// Blossom harvest
 harvestBtn.addEventListener("click", () => {
   const item = items.find(i => i.type === "blossom" && !i.harvested);
   if (item) item.harvested = true;
   setUIMode("default");
+
+  // here later you could add to inventory + saveGame(game)
 });
 
-// ===== Battle & run =====
+// Exit back to overworld
+exitBtn.addEventListener("click", () => {
+  fadeOverlay.style.pointerEvents = "auto";
+  fadeOverlay.style.opacity = "1";
+  setTimeout(() => {
+    window.location.href = "index.html";
+  }, 400);
+});
+
+// =====================================================
+// BATTLE & RUN ACTIONS
+// =====================================================
 function resetLunges() {
-  player.lungeOffsetX = player.lungeOffsetY = 0;
-  monster.lungeOffsetX = monster.lungeOffsetY = 0;
+  player.lungeOffsetX = 0;
+  player.lungeOffsetY = 0;
+  monster.lungeOffsetX = 0;
+  monster.lungeOffsetY = 0;
 }
 
 fightBtn.addEventListener("click", () => {
@@ -437,27 +547,32 @@ runBtn.addEventListener("click", () => {
   startRunTeleport();
 });
 
+// Monster counter-attack (called after delay)
 function performMonsterCounterAttack() {
   if (!monster.alive || !battleMode) {
     battleBusy = false;
     return;
   }
 
+  // Monster enters attack pose + lunges toward player
   monster.state = "attack";
   const dx = player.x - monster.x;
   const dy = player.y - monster.y;
   const len = Math.hypot(dx, dy) || 1;
-  const LUNGE = 20;
+  const LUNGE_DIST = 20;
 
-  monster.facingLeft = dx < 0;
-  monster.lungeOffsetX = (dx / len) * LUNGE;
-  monster.lungeOffsetY = (dy / len) * LUNGE;
+  if (dx < 0) monster.facingLeft = true;
+  else monster.facingLeft = false;
 
-  const DMG = 2;
-  player.hp -= DMG;
+  monster.lungeOffsetX = (dx / len) * LUNGE_DIST;
+  monster.lungeOffsetY = (dy / len) * LUNGE_DIST;
+
+  const MONSTER_DAMAGE = 2;
+  player.hp -= MONSTER_DAMAGE;
   if (player.hp < 0) player.hp = 0;
-  player.hitFlash = 0.18;
+  player.hitFlash = 0.18; // red flash on player
 
+  // If player "dies", teleport them like a forced RUN and restore HP
   if (player.hp <= 0) {
     battleMode = false;
     battleBusy = false;
@@ -467,40 +582,47 @@ function performMonsterCounterAttack() {
     resetLunges();
     startRunTeleport(() => {
       player.hp = player.hpMax;
+      // could also saveGame(game) with new hp
     });
-    return;
+  } else {
+    // Monster recovers from lunge
+    setTimeout(() => {
+      monster.lungeOffsetX = 0;
+      monster.lungeOffsetY = 0;
+      if (monster.alive && monster.aiState !== "dying") {
+        monster.state = "idle";
+      }
+      // End of monster's turn: player can act again
+      if (battleMode) {
+        battleBusy = false;
+        setUIMode("battle");
+      }
+    }, 200);
   }
-
-  setTimeout(() => {
-    monster.lungeOffsetX = 0;
-    monster.lungeOffsetY = 0;
-    if (monster.alive && monster.aiState !== "dying") {
-      monster.state = "idle";
-    }
-    if (battleMode) {
-      battleBusy = false;
-      setUIMode("battle");
-    }
-  }, 200);
 }
 
-function performAttack(dmg) {
+// Player attack (turn-based)
+function performAttack(damage) {
   if (!battleMode || !monster.alive || battleBusy) return;
-  battleBusy = true;
-  setUIMode("battle");
 
+  battleBusy = true;
+  setUIMode("battle"); // keep only battle buttons visible
+
+  // Player lunges 15px toward monster
   const dx = monster.x - player.x;
   const dy = monster.y - player.y;
   const len = Math.hypot(dx, dy) || 1;
-  const LUNGE = 15;
+  const LUNGE_DIST = 15;
 
-  player.lungeOffsetX = (dx / len) * LUNGE;
-  player.lungeOffsetY = (dy / len) * LUNGE;
+  player.lungeOffsetX = (dx / len) * LUNGE_DIST;
+  player.lungeOffsetY = (dy / len) * LUNGE_DIST;
 
-  monster.hp -= dmg;
+  // Apply damage to monster
+  monster.hp -= damage;
   if (monster.hp < 0) monster.hp = 0;
-  monster.hitFlash = 0.18;
+  monster.hitFlash = 0.18; // red flash on monster
 
+  // Check for monster death
   if (monster.hp <= 0) {
     monster.hp = 0;
     if (monster.alive) {
@@ -509,6 +631,7 @@ function performAttack(dmg) {
       monster.aiState = "dying";
       monster.fadeAlpha = 1;
     }
+    // End battle after brief moment so flash shows
     setTimeout(() => {
       battleMode = false;
       battleBusy = false;
@@ -518,6 +641,7 @@ function performAttack(dmg) {
     return;
   }
 
+  // After short time, remove player lunge + monster flash
   setTimeout(() => {
     player.lungeOffsetX = 0;
     player.lungeOffsetY = 0;
@@ -528,33 +652,43 @@ function performAttack(dmg) {
       return;
     }
 
+    // Delay before monster counter-attacks (slightly longer for readability)
     setTimeout(() => {
       performMonsterCounterAttack();
     }, 500);
   }, 180);
 }
 
+// Attach attacks to buttons
 hitBtn.addEventListener("click",   () => performAttack(2));
 smackBtn.addEventListener("click", () => performAttack(3));
 punchBtn.addEventListener("click", () => performAttack(4));
 kickBtn.addEventListener("click",  () => performAttack(5));
 
-// ===== Run teleport =====
+// =====================================================
+// RUN TELEPORT WITH FADE
+// =====================================================
 function startRunTeleport(onAfterTeleport) {
   runTeleportInProgress = true;
   fadeOverlay.style.pointerEvents = "auto";
   fadeOverlay.style.opacity = "1";
 
+  // Fade to black, then teleport
   setTimeout(() => {
+    // Teleport player to start (innerworld-local)
     player.x = START_X;
     player.y = START_Y;
     camera.x = player.x - canvas.width / 2;
     camera.y = player.y - canvas.height / 2;
     clampCameraToBg();
 
-    if (typeof onAfterTeleport === "function") onAfterTeleport();
+    if (typeof onAfterTeleport === "function") {
+      onAfterTeleport();
+    }
 
+    // Fade back in
     fadeOverlay.style.opacity = "0";
+
     setTimeout(() => {
       fadeOverlay.style.pointerEvents = "none";
       runTeleportInProgress = false;
@@ -563,7 +697,9 @@ function startRunTeleport(onAfterTeleport) {
   }, 400);
 }
 
-// ===== Monster roaming AI =====
+// =====================================================
+// MONSTER ROAMING AI
+// =====================================================
 function updateMonsterAI(dt) {
   if (!monster.alive || monster.aiState === "dying") return;
   if (battleMode) {
@@ -571,8 +707,9 @@ function updateMonsterAI(dt) {
     return;
   }
 
+  // While in aggro (player close, FIGHT/RUN up), monster stands still
   if (monster.aiState === "aggro") {
-    return; // freeze in place when FIGHT/RUN is up
+    return;
   }
 
   if (monster.aiState === "pause") {
@@ -585,6 +722,7 @@ function updateMonsterAI(dt) {
     const nextX = monster.x + monster.roamDirX * speed * dt;
     const nextY = monster.y + monster.roamDirY * speed * dt;
 
+    // Use a small circle for monster collision
     const probeOffsetY = 10;
     const probeRadius = 30;
 
@@ -592,6 +730,7 @@ function updateMonsterAI(dt) {
       monster.x = nextX;
       monster.y = nextY;
     } else {
+      // Hit an obstacle → pause, then new direction
       startMonsterPause();
       return;
     }
@@ -603,29 +742,38 @@ function updateMonsterAI(dt) {
   }
 }
 
-// ===== Loop =====
+// =====================================================
+// LOOP
+// =====================================================
 let last = 0;
 function loop(t) {
   const dt = (t - last) / 1000;
   last = t;
   currentTime = t;
+
   update(dt);
   draw();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
-// ===== Update =====
+// =====================================================
+// UPDATE
+// =====================================================
 function update(dt) {
   const lockMove = movementLocked();
 
+  // Player movement
   if (!lockMove) {
     player.moving = Math.abs(joy.dx) > 0.05 || Math.abs(joy.dy) > 0.05;
+
     if (player.moving) {
       const nextX = player.x + joy.dx * player.speed * dt;
       const nextY = player.y + joy.dy * player.speed * dt;
+
       if (!circleBlocked(nextX, player.y + player.hitOffsetY, player.hitR))
         player.x = nextX;
+
       if (!circleBlocked(player.x, nextY + player.hitOffsetY, player.hitR))
         player.y = nextY;
     }
@@ -633,6 +781,7 @@ function update(dt) {
     player.moving = false;
   }
 
+  // Player animation
   if (player.moving) {
     player.frameTimer += dt;
     if (player.frameTimer > 0.15) {
@@ -643,25 +792,30 @@ function update(dt) {
     player.frame = 0;
   }
 
+  // Facing
   if (!lockMove) {
     if (joy.dx < -0.05) player.facingLeft = true;
     else if (joy.dx > 0.05) player.facingLeft = false;
   }
 
+  // Damage flash timers
   if (player.hitFlash > 0) {
     player.hitFlash -= dt;
     if (player.hitFlash < 0) player.hitFlash = 0;
   }
+
   if (monster.hitFlash > 0) {
     monster.hitFlash -= dt;
     if (monster.hitFlash < 0) monster.hitFlash = 0;
   }
 
+  // Monster fade-out when dying
   if (!monster.alive && monster.aiState === "dying") {
-    monster.fadeAlpha -= dt * 1.8;
+    monster.fadeAlpha -= dt * 1.8; // fade over ~0.55s
     if (monster.fadeAlpha < 0) monster.fadeAlpha = 0;
   }
 
+  // Lunge offset soft decay
   player.lungeOffsetX *= 0.85;
   player.lungeOffsetY *= 0.85;
   if (Math.abs(player.lungeOffsetX) < 0.01) player.lungeOffsetX = 0;
@@ -672,9 +826,10 @@ function update(dt) {
   if (Math.abs(monster.lungeOffsetX) < 0.01) monster.lungeOffsetX = 0;
   if (Math.abs(monster.lungeOffsetY) < 0.01) monster.lungeOffsetY = 0;
 
+  // Monster roaming AI
   updateMonsterAI(dt);
 
-  // proximity UI (only when not locked)
+  // Proximity UI logic only when not in battle or teleport
   if (!movementLocked()) {
     let nearMonster = false;
     if (monster.alive) {
@@ -685,13 +840,16 @@ function update(dt) {
     }
 
     let nearBlossom = false;
-    if (!nearMonster) {
+    if (!nearMonster) { // monster has priority
       for (const item of items) {
         if (item.harvested) continue;
         const dx = player.x - item.x;
         const dy = player.y - item.y;
         const dist = Math.hypot(dx, dy);
-        if (dist < 80) { nearBlossom = true; break; }
+        if (dist < 80) {
+          nearBlossom = true;
+          break;
+        }
       }
     }
 
@@ -699,9 +857,8 @@ function update(dt) {
       setUIMode("monsterChoice");
       if (monster.alive && !battleMode) {
         monster.aiState = "aggro";
-        monster.state  = "attack";
-        monster.roamTimer  = 0;
-        monster.pauseTimer = 9999;
+        monster.state = "attack";
+        // face the player when in aggro
         const dx = player.x - monster.x;
         if (dx < 0) monster.facingLeft = true;
         else if (dx > 0) monster.facingLeft = false;
@@ -726,10 +883,13 @@ function update(dt) {
   updateCamera();
 }
 
-// ===== Draw helpers =====
+// =====================================================
+// DRAW HELPERS
+// =====================================================
 function drawHPBubbleOval(worldX, worldY, hp, hpMax) {
   const screenX = worldX - camera.x;
   const screenY = worldY - camera.y;
+
   const text = `♥ ${hp}/${hpMax}`;
   ctx.save();
   ctx.font = "12px sans-serif";
@@ -737,26 +897,33 @@ function drawHPBubbleOval(worldX, worldY, hp, hpMax) {
   ctx.textAlign = "center";
 
   const paddingX = 6;
+  const paddingY = 4;
   const textWidth = ctx.measureText(text).width;
   const w = textWidth + paddingX * 2;
   const h = 18;
+
   const cx = screenX;
   const cy = screenY;
+
   const rx = w / 2;
   const ry = h / 2;
 
+  // Drop shadow ellipse for bubble
   ctx.fillStyle = "rgba(0,0,0,0.3)";
   ctx.beginPath();
   ctx.ellipse(cx, cy + 2, rx, ry, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  // White oval
   ctx.fillStyle = "white";
   ctx.beginPath();
   ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  // Text inside
   ctx.fillStyle = "black";
   ctx.fillText(text, cx, cy);
+
   ctx.restore();
 }
 
@@ -768,10 +935,13 @@ function drawHitFlashRect(x, y, w, h, alpha) {
   ctx.restore();
 }
 
-// ===== Draw =====
+// =====================================================
+// DRAW
+// =====================================================
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // Background (biome+rarity-specific)
   ctx.drawImage(
     bg,
     camera.x, camera.y,
@@ -780,23 +950,27 @@ function draw() {
     canvas.width, canvas.height
   );
 
-  // Blossom
+  // Items (blossom)
   for (const item of items) {
     if (item.harvested) continue;
+
     if (item.type === "blossom") {
       const size = 80;
       ctx.drawImage(
         blossomImg,
-        item.x - camera.x - size / 2,
-        item.y - camera.y - size / 2,
-        size, size
+        item.x - camera.x - size/2,
+        item.y - camera.y - size/2,
+        size,
+        size
       );
     }
   }
 
   // Monster
   if (monster.alive || (monster.aiState === "dying" && monster.fadeAlpha > 0)) {
+    // Decide which sprite to use
     let mImg = monsterIdleImg;
+
     if (monster.aiState === "dying") {
       mImg = monsterHurtImg;
     } else if (monster.hitFlash > 0) {
@@ -805,6 +979,7 @@ function draw() {
       monster.state === "attack" ||
       (monster.alive && currentUIMode === "monsterChoice" && !battleMode)
     ) {
+      // Attack sprite while lunging OR when FIGHT/RUN UI is up
       mImg = monsterAttackImg;
     }
 
@@ -813,36 +988,26 @@ function draw() {
     const mh = mImg.height * baseScale;
     const worldMX = monster.x + monster.lungeOffsetX;
     const worldMY = monster.y + monster.lungeOffsetY;
+
     const screenMX = worldMX - camera.x;
     const screenMY = worldMY - camera.y;
 
-    // Bobbing & breathing only while roaming & not in battle
-       let bob = Math.sin(currentTime / 500) * 4;
-      let breathe = 1 + Math.sin(currentTime / 700) * 0.02;
-      
-      // Freeze animation during aggro, battle, or dying
-      if (
-        monster.aiState === "aggro" ||
-        monster.aiState === "battle" ||
-        monster.aiState === "dying" ||
-        battleMode
-      ) {
-        bob = 0;
-        breathe = 1;
-      }
+    // Bobbing & breathing
+    const bob = Math.sin(currentTime / 500) * 4;            // up/down
+    const breathe = 1 + Math.sin(currentTime / 700) * 0.02; // ±2% scale
 
-
+    // Monster sprite with bobbing + breathing + facing
     ctx.save();
     ctx.globalAlpha = (monster.aiState === "dying") ? monster.fadeAlpha : 1;
     ctx.translate(screenMX, screenMY + bob);
-    let scaleX = monster.facingLeft ? -1 : 1;
-    scaleX *= breathe;
+    const scaleX = (monster.facingLeft ? -1 : 1) * breathe;
     ctx.scale(scaleX, breathe);
-    ctx.drawImage(mImg, -mw / 2, -mh / 2, mw, mh);
+    ctx.drawImage(mImg, -mw/2, -mh/2, mw, mh);
     ctx.restore();
 
+    // Red hit flash on monster (sprite-sized)
     if (monster.hitFlash > 0) {
-      const alpha = (monster.hitFlash / 0.18) * 0.18;
+      const alpha = (monster.hitFlash / 0.18) * 0.18; // subtle
       const fxW = mw * breathe;
       const fxH = mh * breathe;
       const fxX = screenMX - fxW / 2;
@@ -850,6 +1015,7 @@ function draw() {
       drawHitFlashRect(fxX, fxY, fxW, fxH, alpha);
     }
 
+    // Monster HP bubble only during battle and while alive
     if (battleMode && monster.alive) {
       drawHPBubbleOval(monster.x, monster.y - 60, monster.hp, monster.hpMax);
     }
@@ -859,10 +1025,11 @@ function draw() {
   const img = frames[player.frame];
   const w = img.width * player.scale;
   const h = img.height * player.scale;
+
   const worldPX = player.x + player.lungeOffsetX;
   const worldPY = player.y + player.lungeOffsetY;
-  const drawX = worldPX - camera.x - w / 2;
-  const drawY = worldPY - camera.y - h / 2;
+  const drawX = worldPX - camera.x - w/2;
+  const drawY = worldPY - camera.y - h/2;
 
   if (player.facingLeft) {
     ctx.save();
@@ -874,18 +1041,22 @@ function draw() {
     ctx.drawImage(img, drawX, drawY, w, h);
   }
 
+  // Red hit flash on player (sprite-sized)
   if (player.hitFlash > 0) {
-    const alpha = (player.hitFlash / 0.18) * 0.18;
+    const alpha = (player.hitFlash / 0.18) * 0.18; // subtle
     drawHitFlashRect(drawX, drawY, w, h, alpha);
   }
 
+  // Player HP bubble only during battle
   if (battleMode) {
     drawHPBubbleOval(player.x, player.y - 60, player.hp, player.hpMax);
   }
 
+  // Debug Hitbox
   if (DEBUG_HITBOX) {
     const c2x = player.x - camera.x;
     const c2y = player.y - camera.y + player.hitOffsetY;
+
     ctx.strokeStyle = "red";
     ctx.lineWidth = 2;
     ctx.beginPath();
