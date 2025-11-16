@@ -1256,9 +1256,27 @@ function updateEnterButton() {
 
 // Go into innerworld
 enterButtonEl.addEventListener("click", () => {
+  const tile = getTile(playerX, playerY);
+
+  // fallback safety
+  if (!tile) return;
+
+  // 🔥 NEW: Store info for innerworld
+  localStorage.setItem("innerworld_entry", JSON.stringify({
+    tile: {
+      type: tile.type,
+      rarity: tile.rarity || "common"  // if you haven't added rarity yet
+    },
+    playerStart: {
+      x: 200,
+      y: 200
+    }
+  }));
+
   saveGame();
   window.location.href = "innerworld.html";
 });
+
 
 // =====================================================
 // CARDS
