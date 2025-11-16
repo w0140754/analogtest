@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport"
       content="width=device-width,initial-scale=1.0,viewport-fit=cover,user-scalable=no" />
-<title>Outerworld — 5x5 Grid with Cards</title>
+<title>Outerworld — Persistent 5x5 Grid</title>
 
 <style>
   html, body {
@@ -115,9 +115,7 @@
     transition: transform 0.1s ease, box-shadow 0.1s ease;
   }
 
-  .tile:active {
-    transform: scale(0.97);
-  }
+  .tile:active { transform: scale(0.97); }
 
   .tile-empty {
     background-color: #020617;
@@ -130,7 +128,6 @@
       0 0 18px rgba(250,204,21,0.7);
   }
 
-  /* Player indicator */
   .tile-player::after {
     content: "⬤";
     position: absolute;
@@ -141,7 +138,6 @@
     text-shadow: 0 0 4px rgba(0,0,0,0.8);
   }
 
-  /* A subtle "you are here" ring */
   .tile-player {
     box-shadow:
       0 0 0 2px rgba(96,165,250,0.8),
@@ -159,7 +155,6 @@
     gap: 6px;
   }
 
-  /* ENTER button row */
   #enterRow {
     display: flex;
     justify-content: center;
@@ -178,136 +173,22 @@
     letter-spacing: 0.03em;
     text-transform: uppercase;
     cursor: pointer;
-    box-shadow: 0 6px 14px rgba(34,197,94,0.55);
   }
 
-  #enterButton:active {
-    transform: translateY(1px);
-    box-shadow: 0 3px 8px rgba(34,197,94,0.55);
-  }
+  /* Cards */
+  #cardRow { display: flex; gap: 10px; overflow-x: auto; }
+  .card { width: 60px; height: 84px; border-radius: 8px; cursor: pointer; background: #0f172a; }
+  .card img { width: 100%; height: 100%; object-fit: cover; }
+  .card-count { position: absolute; bottom: 4px; right: 4px; background: #0008; padding: 2px 4px; border-radius: 6px; font-size: 10px; }
 
-  /* Card row */
-  #cardRow {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 10px;
-    overflow-x: auto;
-    padding: 2px 0;
-  }
+  .card-disabled { opacity: 0.35; }
+  .card-selected { transform: scale(1.1); border: 2px solid #facc15; }
 
-  #cardRowTitle {
-    font-size: 11px;
-    color: #9ca3af;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-right: 4px;
-    white-space: nowrap;
-  }
-
-  .card {
-    position: relative;
-    flex: 0 0 auto;
-    width: 60px;
-    height: 84px;
-    border-radius: 8px;
-    background: radial-gradient(circle at top, #0f172a, #020617);
-    border: 1px solid rgba(148,163,184,0.7);
-    box-shadow: 0 8px 16px rgba(15,23,42,0.9);
-    overflow: hidden;
-    cursor: pointer;
-    display: flex;
-    align-items: stretch;
-    justify-content: stretch;
-    transform-origin: center bottom;
-    transition:
-      transform 0.12s ease,
-      box-shadow 0.12s ease,
-      border-color 0.12s ease,
-      background 0.12s ease;
-  }
-
-  .card img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(15,23,42,0.9);
-  }
-
-  .card-selected {
-    transform: translateY(-6px) scale(1.08);
-    border-color: rgba(250,204,21,1);
-    box-shadow:
-      0 0 0 2px rgba(250,204,21,0.75),
-      0 14px 26px rgba(250,204,21,0.55);
-    background: radial-gradient(circle at top, #facc15, #0f172a);
-  }
-
-  .card-disabled {
-    opacity: 0.35;
-    cursor: default;
-    box-shadow: none;
-  }
-
-  .card-count {
-    position: absolute;
-    right: 4px;
-    bottom: 4px;
-    padding: 2px 5px;
-    border-radius: 999px;
-    font-size: 10px;
-    background: rgba(15,23,42,0.9);
-    color: #e5e7eb;
-    border: 1px solid rgba(148,163,184,0.8);
-  }
-
-  /* Inventory toggle & panel */
-  #inventoryToggleRow {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 2px;
-  }
-
-  #inventoryToggle {
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 999px;
-    border: 1px solid rgba(148,163,184,0.7);
-    background: rgba(15,23,42,0.9);
-    color: #e5e7eb;
-    cursor: pointer;
-  }
-
-  #inventoryPanel {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.18s ease;
-    margin-top: 2px;
-  }
-
-  #inventoryPanelInner {
-    font-size: 12px;
-    color: #9ca3af;
-    padding-top: 4px;
-    border-top: 1px dashed rgba(55,65,81,0.9);
-  }
-
-  #inventoryPanelInner ul {
-    margin: 4px 0 0 0;
-    padding-left: 16px;
-  }
-
-  #inventoryPanelInner li {
-    margin-bottom: 2px;
-  }
 </style>
 </head>
 <body>
 <div id="outerRoot">
+
   <!-- ===== TOP BANNER ===== -->
   <div id="banner">
     <div id="banner-left">
@@ -319,7 +200,7 @@
     </div>
   </div>
 
-  <!-- ===== GRID AREA ===== -->
+  <!-- ===== GRID ===== -->
   <div id="gridWrapper">
     <div id="gridSquare">
       <div id="grid"></div>
@@ -328,44 +209,62 @@
 
   <!-- ===== BOTTOM UI ===== -->
   <div id="bottomUI">
-    <div id="enterRow">
-      <button id="enterButton">ENTER</button>
-    </div>
-
-    <div id="cardRow">
-      <div id="cardRowTitle">Cards</div>
-      <!-- cards inserted here -->
-    </div>
-
-    <div id="inventoryToggleRow">
-      <button id="inventoryToggle">Inventory ▲</button>
-    </div>
-    <div id="inventoryPanel">
-      <div id="inventoryPanelInner">
-        <div>Cards & resources:</div>
-        <ul id="inventoryList"></ul>
-      </div>
-    </div>
+    <div id="enterRow"><button id="enterButton">ENTER</button></div>
+    <div id="cardRow"><div id="cardRowTitle">Cards</div></div>
   </div>
+
 </div>
 
 <script>
 // =====================================================
-// DATA MODELS
+// SAVE SYSTEM
+// =====================================================
+const SAVE_KEY = "myGameSaveV1";
+
+// Attempt to load game state
+function loadGame() {
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (!raw) return false;
+
+  const data = JSON.parse(raw);
+
+  world = data.world || world;
+  playerX = data.player?.x ?? playerX;
+  playerY = data.player?.y ?? playerY;
+  cards   = data.cards   || cards;
+
+  return true;
+}
+
+// Save game state
+function saveGame() {
+  const data = {
+    world,
+    player: { x: playerX, y: playerY },
+    cards
+  };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+}
+
+// =====================================================
+// GRID + CARDS + UI LOGIC (same as before)
 // =====================================================
 
-// 5x5 world grid of tiles
-// null = empty
-// { type: "home" | "plains" | "hills" | "forest" }
+// --- world data ---
 const SIZE = 5;
 let world = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
 
-// Player starts in center (index 2,2 => shown as 3,3 in UI)
 let playerX = 2;
 let playerY = 2;
 
-// Initialize center as "home" tile
-world[playerY][playerX] = { type: "home" };
+// Load saved data if present
+const loaded = loadGame();
+
+// Default tile if no save existed
+if (!loaded) {
+  world[playerY][playerX] = { type: "home" };
+  saveGame();
+}
 
 // Tile type definitions
 const TILE_TYPES = {
@@ -375,327 +274,222 @@ const TILE_TYPES = {
   forest: { label: "Forest", image: "tile_forest.png" }
 };
 
-// Cards (consumable)
-let cards = [
+// Cards
+let cards = cards || [
   { type: "plains", label: "Plains", image: "card_plains.png", count: 3 },
   { type: "hills",  label: "Hills",  image: "card_hills.png",  count: 2 },
   { type: "forest", label: "Forest", image: "card_forest.png", count: 2 }
 ];
 
-// Currently selected card type, or null
 let selectedCardType = null;
 
 // =====================================================
-// DOM REFERENCES
+// DOM REFS
 // =====================================================
 const gridEl            = document.getElementById("grid");
 const bannerTileNameEl  = document.getElementById("banner-tileName");
 const bannerCoordTextEl = document.getElementById("banner-coordText");
 const enterButtonEl     = document.getElementById("enterButton");
-
 const cardRowEl         = document.getElementById("cardRow");
-const inventoryToggleEl = document.getElementById("inventoryToggle");
-const inventoryPanelEl  = document.getElementById("inventoryPanel");
-const inventoryListEl   = document.getElementById("inventoryList");
 
 // =====================================================
 // HELPERS
 // =====================================================
-function inBounds(x, y) {
-  return x >= 0 && x < SIZE && y >= 0 && y < SIZE;
-}
+function inBounds(x,y){ return x>=0 && x<SIZE && y>=0 && y<SIZE; }
+function isAdjacent(x,y){ return Math.abs(x-playerX)+Math.abs(y-playerY)===1; }
+function getTile(x,y){ return world[y][x]; }
+function setTile(x,y,type){ world[y][x]={type}; }
 
-function isAdjacentToPlayer(x, y) {
-  const dx = Math.abs(x - playerX);
-  const dy = Math.abs(y - playerY);
-  // orthogonal adjacency only
-  return (dx + dy === 1);
-}
+function getCard(type){ return cards.find(c=>c.type===type); }
 
-function getTile(x, y) {
-  if (!inBounds(x, y)) return null;
-  return world[y][x];
-}
-
-function setTile(x, y, type) {
-  if (!inBounds(x, y)) return;
-  world[y][x] = { type };
-}
-
-// Find a card entry by type
-function getCardByType(type) {
-  return cards.find(c => c.type === type);
-}
-
-// Are there any cards of this type left?
-function cardAvailable(type) {
-  const card = getCardByType(type);
-  return card && card.count > 0;
-}
-
-// Adjacent empty tiles we can play a card onto
-function getPlayableTilesForCard(type) {
-  if (!cardAvailable(type)) return [];
-  const coords = [];
-  const dirs = [
-    { dx:  1, dy:  0 },
-    { dx: -1, dy:  0 },
-    { dx:  0, dy:  1 },
-    { dx:  0, dy: -1 }
-  ];
-  for (const {dx, dy} of dirs) {
-    const nx = playerX + dx;
-    const ny = playerY + dy;
-    if (!inBounds(nx, ny)) continue;
-    const tile = getTile(nx, ny);
-    if (tile === null) {
-      coords.push({ x: nx, y: ny });
-    }
+function playableTiles(type){
+  const c=getCard(type);
+  if (!c || c.count<=0) return [];
+  const out=[];
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+  for(const[dX,dY]of dirs){
+    const nx=playerX+dX, ny=playerY+dY;
+    if(inBounds(nx,ny) && world[ny][nx]===null) out.push({x:nx,y:ny});
   }
-  return coords;
+  return out;
 }
 
 // =====================================================
-// RENDER: GRID
+// GRID DOM
 // =====================================================
-let tileElements = []; // 2D array of tile DOM references
+let tileElements = [];
 
-function initGridDOM() {
-  gridEl.innerHTML = "";
-  tileElements = [];
-  for (let y = 0; y < SIZE; y++) {
-    const row = [];
-    for (let x = 0; x < SIZE; x++) {
-      const tileDiv = document.createElement("div");
-      tileDiv.className = "tile";
-      tileDiv.dataset.x = x;
-      tileDiv.dataset.y = y;
-      tileDiv.addEventListener("click", onTileClick);
-      gridEl.appendChild(tileDiv);
-      row.push(tileDiv);
+function initGridDOM(){
+  gridEl.innerHTML="";
+  tileElements=[];
+  for(let y=0;y<SIZE;y++){
+    const row=[];
+    for(let x=0;x<SIZE;x++){
+      const d=document.createElement("div");
+      d.className="tile";
+      d.dataset.x=x;
+      d.dataset.y=y;
+      d.addEventListener("click",onTileClick);
+      gridEl.appendChild(d);
+      row.push(d);
     }
     tileElements.push(row);
   }
 }
 
-function renderGrid() {
+function renderGrid(){
   const playable = selectedCardType
-    ? getPlayableTilesForCard(selectedCardType).map(c => `${c.x},${c.y}`)
+    ? playableTiles(selectedCardType).map(c=>`${c.x},${c.y}`)
     : [];
 
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      const tileDiv = tileElements[y][x];
-      const data = world[y][x];
+  for(let y=0;y<SIZE;y++){
+    for(let x=0;x<SIZE;x++){
+      const div = tileElements[y][x];
+      const tile = world[y][x];
 
-      tileDiv.classList.remove("tile-empty", "tile-player", "tile-highlight-playable");
-      tileDiv.style.backgroundImage = "";
+      div.className="tile";
+      div.style.backgroundImage="";
 
-      if (!data) {
-        tileDiv.classList.add("tile-empty");
+      if(!tile){
+        div.classList.add("tile-empty");
       } else {
-        const tdef = TILE_TYPES[data.type];
-        if (tdef && tdef.image) {
-          tileDiv.style.backgroundImage = `url('${tdef.image}')`;
-        } else {
-          tileDiv.classList.add("tile-empty");
-        }
+        const def=TILE_TYPES[tile.type];
+        if(def) div.style.backgroundImage=`url('${def.image}')`;
       }
 
-      if (x === playerX && y === playerY) {
-        tileDiv.classList.add("tile-player");
-      }
+      if(x===playerX && y===playerY)
+        div.classList.add("tile-player");
 
-      if (playable.includes(`${x},${y}`)) {
-        tileDiv.classList.add("tile-highlight-playable");
-      }
+      if(playable.includes(`${x},${y}`))
+        div.classList.add("tile-highlight-playable");
     }
   }
 }
 
 // =====================================================
-// RENDER: BANNER & ENTER BUTTON
+// BANNER + ENTER BUTTON
 // =====================================================
-function updateBanner() {
-  const tile = getTile(playerX, playerY);
-  let label = "Empty";
-  if (tile && TILE_TYPES[tile.type]) {
-    label = TILE_TYPES[tile.type].label;
-  } else if (tile && !TILE_TYPES[tile.type]) {
-    label = tile.type;
-  }
-
-  bannerTileNameEl.textContent = label;
-  bannerCoordTextEl.textContent = `${playerX + 1}, ${playerY + 1}`;
+function updateBanner(){
+  const tile=getTile(playerX,playerY);
+  bannerTileNameEl.textContent = TILE_TYPES[tile.type]?.label || tile.type;
+  bannerCoordTextEl.textContent = `${playerX+1}, ${playerY+1}`;
 }
 
-function updateEnterButton() {
-  const tile = getTile(playerX, playerY);
-  if (!tile) {
-    enterButtonEl.style.display = "none";
-    return;
-  }
-  const def = TILE_TYPES[tile.type];
-  const label = def ? def.label : tile.type;
-  enterButtonEl.textContent = `ENTER ${label.toUpperCase()}`;
-  enterButtonEl.style.display = "inline-block";
+function updateEnterButton(){
+  const tile=getTile(playerX,playerY);
+  if(!tile){ enterButtonEl.style.display="none"; return; }
+  const label=TILE_TYPES[tile.type]?.label || tile.type;
+  enterButtonEl.textContent=`ENTER ${label.toUpperCase()}`;
+  enterButtonEl.style.display="inline-block";
 }
 
-// Placeholder: hook this into your innerworld later.
-enterButtonEl.addEventListener("click", () => {
-  const tile = getTile(playerX, playerY);
-  if (!tile) return;
-  const def = TILE_TYPES[tile.type];
-  const name = def ? def.label : tile.type;
-  // Replace this with your "go into innerworld" logic:
-  alert(`Entering ${name} tile… (hook this into innerworld)`);
+// When entering → save and switch pages
+enterButtonEl.addEventListener("click",()=>{
+  saveGame();
+  window.location.href="innerworld.html";
 });
 
 // =====================================================
-// RENDER: CARDS & INVENTORY
+// CARDS ROW
 // =====================================================
-let cardElements = [];
+let cardElements=[];
 
-function initCardsDOM() {
-  // Remove existing card elements except label
-  const children = Array.from(cardRowEl.children).slice(1); // skip title
-  children.forEach(c => cardRowEl.removeChild(c));
-  cardElements = [];
+function initCardsDOM(){
+  const extra = [...cardRowEl.children].slice(1);
+  extra.forEach(el=>cardRowEl.removeChild(el));
+  cardElements=[];
 
-  for (const card of cards) {
-    const div = document.createElement("div");
-    div.className = "card";
-    div.dataset.type = card.type;
+  for(const c of cards){
+    const d=document.createElement("div");
+    d.className="card";
+    d.dataset.type=c.type;
 
-    const img = document.createElement("img");
-    img.src = card.image;
-    img.alt = card.label;
+    const img=document.createElement("img");
+    img.src=c.image;
+    d.appendChild(img);
 
-    const countDiv = document.createElement("div");
-    countDiv.className = "card-count";
+    const cnt=document.createElement("div");
+    cnt.className="card-count";
+    d.appendChild(cnt);
 
-    div.appendChild(img);
-    div.appendChild(countDiv);
-    div.addEventListener("click", onCardClick);
+    d.addEventListener("click",onCardClick);
 
-    cardRowEl.appendChild(div);
-    cardElements.push({ type: card.type, el: div, countEl: countDiv });
+    cardRowEl.appendChild(d);
+    cardElements.push({ type:c.type, el:d, countEl:cnt });
   }
 }
 
-function renderCards() {
-  for (const entry of cardElements) {
-    const cardData = getCardByType(entry.type);
-    const hasAny  = cardData && cardData.count > 0;
-    const isSelected = (selectedCardType === entry.type);
-    entry.countEl.textContent = cardData ? `x${cardData.count}` : "x0";
-
-    entry.el.classList.toggle("card-disabled", !hasAny);
-    entry.el.classList.toggle("card-selected", isSelected);
+function renderCards(){
+  for(const entry of cardElements){
+    const c=getCard(entry.type);
+    entry.countEl.textContent=`x${c.count}`;
+    entry.el.classList.toggle("card-disabled", c.count<=0);
+    entry.el.classList.toggle("card-selected", selectedCardType===entry.type);
   }
 }
 
-function renderInventory() {
-  inventoryListEl.innerHTML = "";
-  for (const card of cards) {
-    const li = document.createElement("li");
-    li.textContent = `${card.label} Card — x${card.count}`;
-    inventoryListEl.appendChild(li);
-  }
-  // Later you can add other resources here too.
-}
+function onCardClick(e){
+  const type=e.currentTarget.dataset.type;
+  const c=getCard(type);
+  if(c.count<=0) return;
 
-// card click: select/deselect
-function onCardClick(e) {
-  const type = e.currentTarget.dataset.type;
-  const card = getCardByType(type);
-  if (!card || card.count <= 0) return;
-
-  if (selectedCardType === type) {
-    selectedCardType = null;
-  } else {
-    selectedCardType = type;
-  }
-
+  selectedCardType = selectedCardType===type ? null : type;
   renderCards();
   renderGrid();
+  saveGame();
 }
 
-// inventory expand/collapse
-let inventoryExpanded = false;
-inventoryToggleEl.addEventListener("click", () => {
-  inventoryExpanded = !inventoryExpanded;
-  if (inventoryExpanded) {
-    inventoryPanelEl.style.maxHeight = "140px";
-    inventoryToggleEl.textContent = "Inventory ▼";
-  } else {
-    inventoryPanelEl.style.maxHeight = "0";
-    inventoryToggleEl.textContent = "Inventory ▲";
-  }
-});
-
 // =====================================================
-// TILE CLICK LOGIC
+// TILE CLICK
 // =====================================================
-function onTileClick(e) {
-  const x = parseInt(e.currentTarget.dataset.x, 10);
-  const y = parseInt(e.currentTarget.dataset.y, 10);
-  const tile = getTile(x, y);
+function onTileClick(e){
+  const x=parseInt(e.currentTarget.dataset.x);
+  const y=parseInt(e.currentTarget.dataset.y);
+  const tile=getTile(x,y);
 
-  // 1. Card selected & tile is an empty adjacent tile => place card
-  if (selectedCardType) {
-    const playTargets = getPlayableTilesForCard(selectedCardType)
-      .map(c => `${c.x},${c.y}`);
-    const key = `${x},${y}`;
+  // Use card
+  if(selectedCardType){
+    const playable=playableTiles(selectedCardType).map(c=>`${c.x},${c.y}`);
+    if(playable.includes(`${x},${y}`)){
+      const card=getCard(selectedCardType);
+      setTile(x,y,selectedCardType);
+      card.count--;
+      if(card.count<=0) selectedCardType=null;
 
-    if (playTargets.includes(key)) {
-      const card = getCardByType(selectedCardType);
-      if (card && card.count > 0) {
-        setTile(x, y, selectedCardType);
-        card.count -= 1;
-
-        if (card.count <= 0) {
-          selectedCardType = null;
-        }
-        renderCards();
-        renderGrid();
-        renderInventory();
-        return;
-      }
-    }
-    // if clicked non-playable tile, just ignore (don’t place or move)
-    return;
-  }
-
-  // 2. No card selected: try to move if adjacent & tile is non-empty
-  if (isAdjacentToPlayer(x, y)) {
-    if (tile !== null) {
-      playerX = x;
-      playerY = y;
+      renderCards();
       renderGrid();
       updateBanner();
       updateEnterButton();
+      saveGame();
     }
-  } else {
-    // 3. (Optional) if clicked your own tile, we could do something extra later
-    // For now, ignore.
+    return;
+  }
+
+  // Move
+  if(isAdjacent(x,y) && tile){
+    playerX=x;
+    playerY=y;
+    renderGrid();
+    updateBanner();
+    updateEnterButton();
+    saveGame();
   }
 }
 
 // =====================================================
 // INIT
 // =====================================================
-function init() {
+function init(){
   initGridDOM();
   initCardsDOM();
   renderGrid();
   renderCards();
-  renderInventory();
   updateBanner();
   updateEnterButton();
 }
 
 init();
 </script>
+
 </body>
 </html>
