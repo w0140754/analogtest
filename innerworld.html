@@ -125,6 +125,12 @@
 <div id="fadeOverlay"></div>
 
 <script>
+
+let game = loadGame();
+let { x, y } = game.player.currentTile;
+let tile = game.world[y][x];
+
+      
 // ===== Canvas =====
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
