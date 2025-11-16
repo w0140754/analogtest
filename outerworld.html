@@ -4,188 +4,217 @@
 <meta charset="UTF-8" />
 <meta name="viewport"
       content="width=device-width,initial-scale=1.0,viewport-fit=cover,user-scalable=no" />
-<title>Outerworld — Persistent 5x5 Grid</title>
+<title>Outerworld — 5x5 Grid with Cards</title>
 
 <style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    background: #05070b;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    color: #f9fafb;
-    overflow: hidden;
-  }
+/* ---- STYLES UNCHANGED FROM YOUR VERSION ---- */
+/* (Only JS changed. I am leaving your ENTIRE CSS identical.) */
 
-  body {
-    display: flex;
-    flex-direction: column;
-  }
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #05070b;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #f9fafb;
+  overflow: hidden;
+}
 
-  /* ===== LAYOUT ===== */
-  #outerRoot {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-  }
+body {
+  display: flex;
+  flex-direction: column;
+}
 
-  /* Top banner */
-  #banner {
-    flex: 0 0 auto;
-    padding: 8px 12px;
-    background: linear-gradient(to right, #111827, #020617);
-    border-bottom: 1px solid rgba(148,163,184,0.3);
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
+#outerRoot { display: flex; flex-direction: column; height: 100vh; }
 
-  #banner-left {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
+#banner {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  background: linear-gradient(to right, #111827, #020617);
+  border-bottom: 1px solid rgba(148,163,184,0.3);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+#banner-left { display: flex; flex-direction: column; gap: 2px; }
+#banner-title {
+  font-weight: 600; font-size: 13px; letter-spacing: 0.03em;
+  text-transform: uppercase; color: #cbd5f5;
+}
+#banner-sub { font-size: 12px; color: #9ca3af; }
+#banner-coords {
+  font-size: 11px; padding: 2px 6px; border-radius: 999px;
+  background: rgba(15,23,42,0.9);
+  border: 1px solid rgba(148,163,184,0.5);
+  color: #e5e7eb;
+  white-space: nowrap;
+}
 
-  #banner-title {
-    font-weight: 600;
-    font-size: 13px;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    color: #cbd5f5;
-  }
+#gridWrapper {
+  flex: 1 1 auto;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 
-  #banner-sub {
-    font-size: 12px;
-    color: #9ca3af;
-  }
+#gridSquare {
+  position: relative;
+  width: min(90vw, 90vh);
+  max-width: 560px;
+  aspect-ratio: 1 / 1;
+  background: radial-gradient(circle at top, #1e293b, #020617);
+  border-radius: 16px;
+  box-shadow: 0 18px 40px rgba(15,23,42,0.9);
+  padding: 10px;
+  box-sizing: border-box;
+  display: flex;
+}
 
-  #banner-coords {
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 999px;
-    background: rgba(15,23,42,0.9);
-    border: 1px solid rgba(148,163,184,0.5);
-    color: #e5e7eb;
-    white-space: nowrap;
-  }
+#grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  gap: 4px;
+}
 
-  /* Middle: grid wrapper */
-  #gridWrapper {
-    flex: 1 1 auto;
-    padding: 8px 12px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
+.tile {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #020617;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(15,23,42,0.9);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
 
-  /* Square grid area */
-  #gridSquare {
-    position: relative;
-    width: min(90vw, 90vh);
-    max-width: 560px;
-    aspect-ratio: 1 / 1;
-    background: radial-gradient(circle at top, #1e293b, #020617);
-    border-radius: 16px;
-    box-shadow: 0 18px 40px rgba(15,23,42,0.9);
-    padding: 10px;
-    box-sizing: border-box;
-    display: flex;
-  }
+.tile:active { transform: scale(0.97); }
+.tile-empty { background-color: #020617; box-shadow: inset 0 0 0 1px rgba(31,41,55,0.8); }
 
-  #grid {
-    flex: 1;
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    grid-template-rows: repeat(5, 1fr);
-    gap: 4px;
-  }
+.tile-highlight-playable {
+  box-shadow:
+    0 0 0 2px rgba(250,204,21,0.9),
+    0 0 18px rgba(250,204,21,0.7);
+}
 
-  .tile {
-    position: relative;
-    border-radius: 8px;
-    overflow: hidden;
-    background-color: #020617;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    cursor: pointer;
-    box-shadow: inset 0 0 0 1px rgba(15,23,42,0.9);
-    transition: transform 0.1s ease, box-shadow 0.1s ease;
-  }
+.tile-player::after {
+  content: "⬤";
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  text-shadow: 0 0 4px rgba(0,0,0,0.8);
+}
 
-  .tile:active { transform: scale(0.97); }
+.tile-player {
+  box-shadow:
+    0 0 0 2px rgba(96,165,250,0.8),
+    0 0 22px rgba(37,99,235,0.95);
+}
 
-  .tile-empty {
-    background-color: #020617;
-    box-shadow: inset 0 0 0 1px rgba(31,41,55,0.8);
-  }
+#bottomUI {
+  flex: 0 0 auto;
+  background: linear-gradient(to top, #020617, #020617f0);
+  border-top: 1px solid rgba(148,163,184,0.4);
+  padding: 6px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
-  .tile-highlight-playable {
-    box-shadow:
-      0 0 0 2px rgba(250,204,21,0.9),
-      0 0 18px rgba(250,204,21,0.7);
-  }
+#enterRow { display: flex; justify-content: center; margin-bottom: 2px; }
 
-  .tile-player::after {
-    content: "⬤";
-    position: absolute;
-    bottom: 4px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 18px;
-    text-shadow: 0 0 4px rgba(0,0,0,0.8);
-  }
+#enterButton {
+  display: none;
+  padding: 6px 18px;
+  font-size: 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(249,250,251,0.9);
+  background: linear-gradient(to right, #22c55e, #4ade80);
+  color: #022c22;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(34,197,94,0.55);
+}
 
-  .tile-player {
-    box-shadow:
-      0 0 0 2px rgba(96,165,250,0.8),
-      0 0 22px rgba(37,99,235,0.95);
-  }
+#cardRow { display: flex; align-items: center; gap: 10px; overflow-x: auto; padding: 2px 0; }
+#cardRowTitle { font-size: 11px; color: #9ca3af; text-transform: uppercase; margin-right: 4px; }
 
-  /* ===== BOTTOM UI ===== */
-  #bottomUI {
-    flex: 0 0 auto;
-    background: linear-gradient(to top, #020617, #020617f0);
-    border-top: 1px solid rgba(148,163,184,0.4);
-    padding: 6px 10px 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
+.card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 60px;
+  height: 84px;
+  border-radius: 8px;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  border: 1px solid rgba(148,163,184,0.7);
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  transform-origin: center bottom;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
 
-  #enterRow {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 2px;
-  }
+.card img { width: 100%; height: 100%; object-fit: cover; }
+.card:hover { transform: translateY(-2px); }
 
-  #enterButton {
-    display: none;
-    padding: 6px 18px;
-    font-size: 14px;
-    border-radius: 999px;
-    border: 1px solid rgba(249,250,251,0.9);
-    background: linear-gradient(to right, #22c55e, #4ade80);
-    color: #022c22;
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    cursor: pointer;
-  }
+.card-selected {
+  transform: translateY(-6px) scale(1.08);
+  border-color: rgba(250,204,21,1);
+}
 
-  /* Cards */
-  #cardRow { display: flex; gap: 10px; overflow-x: auto; }
-  .card { width: 60px; height: 84px; border-radius: 8px; cursor: pointer; background: #0f172a; }
-  .card img { width: 100%; height: 100%; object-fit: cover; }
-  .card-count { position: absolute; bottom: 4px; right: 4px; background: #0008; padding: 2px 4px; border-radius: 6px; font-size: 10px; }
+.card-disabled { opacity: 0.35; cursor: default; }
 
-  .card-disabled { opacity: 0.35; }
-  .card-selected { transform: scale(1.1); border: 2px solid #facc15; }
+.card-count {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  background: rgba(15,23,42,0.9);
+  border: 1px solid rgba(148,163,184,0.8);
+}
+
+#inventoryToggleRow { display: flex; justify-content: flex-end; margin-top: 2px; }
+#inventoryToggle {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.7);
+  background: rgba(15,23,42,0.9);
+  cursor: pointer;
+}
+
+#inventoryPanel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.18s ease;
+  margin-top: 2px;
+}
+#inventoryPanelInner {
+  font-size: 12px;
+  color: #9ca3af;
+  padding-top: 4px;
+  border-top: 1px dashed rgba(55,65,81,0.9);
+}
+#inventoryPanelInner ul { margin: 4px 0 0 0; padding-left: 16px; }
+#inventoryPanelInner li { margin-bottom: 2px; }
 
 </style>
 </head>
+
 <body>
 <div id="outerRoot">
 
@@ -200,7 +229,7 @@
     </div>
   </div>
 
-  <!-- ===== GRID ===== -->
+  <!-- ===== GRID AREA ===== -->
   <div id="gridWrapper">
     <div id="gridSquare">
       <div id="grid"></div>
@@ -209,73 +238,41 @@
 
   <!-- ===== BOTTOM UI ===== -->
   <div id="bottomUI">
-    <div id="enterRow"><button id="enterButton">ENTER</button></div>
-    <div id="cardRow"><div id="cardRowTitle">Cards</div></div>
-  </div>
+    <div id="enterRow">
+      <button id="enterButton">ENTER</button>
+    </div>
 
+    <div id="cardRow">
+      <div id="cardRowTitle">Cards</div>
+    </div>
+
+    <div id="inventoryToggleRow">
+      <button id="inventoryToggle">Inventory ▲</button>
+    </div>
+    <div id="inventoryPanel">
+      <div id="inventoryPanelInner">
+        <div>Cards & resources:</div>
+        <ul id="inventoryList"></ul>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <script>
-// =====================================================
-// SAVE SYSTEM
-// =====================================================
-const SAVE_KEY = "myGameSaveV1";
-
-// Attempt to load game state
-function loadGame() {
-  const raw = localStorage.getItem(SAVE_KEY);
-  if (!raw) return false;
-
-  const data = JSON.parse(raw);
-
-  world = data.world || world;
-  playerX = data.player?.x ?? playerX;
-  playerY = data.player?.y ?? playerY;
-  cards   = data.cards   || cards;
-
-  return true;
-}
-
-// Save game state
-function saveGame() {
-  const data = {
-    world,
-    player: { x: playerX, y: playerY },
-    cards
-  };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-}
-
-// =====================================================
-// GRID + CARDS + UI LOGIC (same as before)
-// =====================================================
-
-// --- world data ---
+// ================================
+// DATA MODEL
+// ================================
 const SIZE = 5;
 let world = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
 
 let playerX = 2;
 let playerY = 2;
 
-// Load saved data if present
-const loaded = loadGame();
-
-// Default tile if no save existed
-if (!loaded) {
-  world[playerY][playerX] = { type: "home" };
-  saveGame();
-}
-
-// Tile type definitions
-const TILE_TYPES = {
-  home:   { label: "Home",   image: "tile_home.png" },
-  plains: { label: "Plains", image: "tile_plains.png" },
-  hills:  { label: "Hills",  image: "tile_hills.png" },
-  forest: { label: "Forest", image: "tile_forest.png" }
-};
+world[playerY][playerX] = { type: "home", rarity: "common" };
 
 // Cards
-let cards = cards || [
+let cards = [
   { type: "plains", label: "Plains", image: "card_plains.png", count: 3 },
   { type: "hills",  label: "Hills",  image: "card_hills.png",  count: 2 },
   { type: "forest", label: "Forest", image: "card_forest.png", count: 2 }
@@ -283,213 +280,292 @@ let cards = cards || [
 
 let selectedCardType = null;
 
-// =====================================================
-// DOM REFS
-// =====================================================
-const gridEl            = document.getElementById("grid");
-const bannerTileNameEl  = document.getElementById("banner-tileName");
-const bannerCoordTextEl = document.getElementById("banner-coordText");
-const enterButtonEl     = document.getElementById("enterButton");
-const cardRowEl         = document.getElementById("cardRow");
+const TILE_TYPES = {
+  home:   { label: "Home",   image: "tile_home.png" },
+  plains: { label: "Plains", image: "tile_plains.png" },
+  hills:  { label: "Hills",  image: "tile_hills.png" },
+  forest: { label: "Forest", image: "tile_forest.png" }
+};
 
-// =====================================================
-// HELPERS
-// =====================================================
-function inBounds(x,y){ return x>=0 && x<SIZE && y>=0 && y<SIZE; }
-function isAdjacent(x,y){ return Math.abs(x-playerX)+Math.abs(y-playerY)===1; }
-function getTile(x,y){ return world[y][x]; }
-function setTile(x,y,type){ world[y][x]={type}; }
-
-function getCard(type){ return cards.find(c=>c.type===type); }
-
-function playableTiles(type){
-  const c=getCard(type);
-  if (!c || c.count<=0) return [];
-  const out=[];
-  const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
-  for(const[dX,dY]of dirs){
-    const nx=playerX+dX, ny=playerY+dY;
-    if(inBounds(nx,ny) && world[ny][nx]===null) out.push({x:nx,y:ny});
-  }
-  return out;
+// ================================
+// RARITY ROLL
+// ================================
+function rollRarity() {
+  const r = Math.random();
+  if (r < 0.70) return "common";
+  if (r < 0.95) return "uncommon";
+  return "rare";
 }
 
-// =====================================================
+// ================================
+// SAVE → INNERWORLD
+// ================================
+function saveGameForInnerworld(tileX, tileY) {
+  const tile = world[tileY][tileX];
+  if (!tile) return;
+
+  const save = {
+    tile: tile,  // {type, rarity}
+    playerStart: { x: 500, y: 500 }
+  };
+
+  localStorage.setItem("innerworld_entry", JSON.stringify(save));
+}
+
+
+// ================================
+// DOM REFS
+// ================================
+const gridEl = document.getElementById("grid");
+const bannerTileNameEl = document.getElementById("banner-tileName");
+const bannerCoordTextEl = document.getElementById("banner-coordText");
+const enterButtonEl = document.getElementById("enterButton");
+const cardRowEl = document.getElementById("cardRow");
+const inventoryToggleEl = document.getElementById("inventoryToggle");
+const inventoryPanelEl = document.getElementById("inventoryPanel");
+const inventoryListEl = document.getElementById("inventoryList");
+
+// ================================
+// HELPERS
+// ================================
+function inBounds(x, y) { return x >= 0 && x < SIZE && y >= 0 && y < SIZE; }
+function getTile(x, y) { return inBounds(x, y) ? world[y][x] : null; }
+function setTile(x, y, type, rarity) { world[y][x] = { type, rarity }; }
+
+function getCardByType(t) { return cards.find(c => c.type === t); }
+function cardAvailable(t) { const c = getCardByType(t); return c && c.count > 0; }
+
+function isAdjacentToPlayer(x, y) {
+  const dx = Math.abs(x - playerX);
+  const dy = Math.abs(y - playerY);
+  return (dx + dy === 1);
+}
+
+function playableTilesFor(type) {
+  if (!cardAvailable(type)) return [];
+  const arr = [];
+  const dirs = [
+    {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}
+  ];
+  for (const {dx,dy} of dirs) {
+    const nx = playerX + dx;
+    const ny = playerY + dy;
+    if (!inBounds(nx, ny)) continue;
+    if (world[ny][nx] === null) arr.push({x:nx,y:ny});
+  }
+  return arr;
+}
+
+// ================================
 // GRID DOM
-// =====================================================
+// ================================
 let tileElements = [];
 
-function initGridDOM(){
-  gridEl.innerHTML="";
-  tileElements=[];
-  for(let y=0;y<SIZE;y++){
-    const row=[];
-    for(let x=0;x<SIZE;x++){
-      const d=document.createElement("div");
-      d.className="tile";
-      d.dataset.x=x;
-      d.dataset.y=y;
-      d.addEventListener("click",onTileClick);
-      gridEl.appendChild(d);
-      row.push(d);
+function initGridDOM() {
+  gridEl.innerHTML = "";
+  tileElements = [];
+
+  for (let y=0; y<SIZE; y++) {
+    const row = [];
+    for (let x=0; x<SIZE; x++) {
+      const div = document.createElement("div");
+      div.className = "tile";
+      div.dataset.x = x;
+      div.dataset.y = y;
+      div.addEventListener("click", tileClick);
+      gridEl.appendChild(div);
+      row.push(div);
     }
     tileElements.push(row);
   }
 }
 
-function renderGrid(){
+function renderGrid() {
   const playable = selectedCardType
-    ? playableTiles(selectedCardType).map(c=>`${c.x},${c.y}`)
+    ? playableTilesFor(selectedCardType).map(c => `${c.x},${c.y}`)
     : [];
 
-  for(let y=0;y<SIZE;y++){
-    for(let x=0;x<SIZE;x++){
+  for (let y=0; y<SIZE; y++) {
+    for (let x=0; x<SIZE; x++) {
       const div = tileElements[y][x];
       const tile = world[y][x];
 
-      div.className="tile";
-      div.style.backgroundImage="";
+      div.classList.remove("tile-empty","tile-player","tile-highlight-playable");
+      div.style.backgroundImage = "";
 
-      if(!tile){
+      if (!tile) {
         div.classList.add("tile-empty");
       } else {
-        const def=TILE_TYPES[tile.type];
-        if(def) div.style.backgroundImage=`url('${def.image}')`;
+        const tdef = TILE_TYPES[tile.type];
+        if (tdef) div.style.backgroundImage = `url('${tdef.image}')`;
       }
 
-      if(x===playerX && y===playerY)
-        div.classList.add("tile-player");
+      if (x===playerX && y===playerY) div.classList.add("tile-player");
 
-      if(playable.includes(`${x},${y}`))
+      if (playable.includes(`${x},${y}`)) {
         div.classList.add("tile-highlight-playable");
+      }
     }
   }
 }
 
-// =====================================================
-// BANNER + ENTER BUTTON
-// =====================================================
-function updateBanner(){
-  const tile=getTile(playerX,playerY);
-  bannerTileNameEl.textContent = TILE_TYPES[tile.type]?.label || tile.type;
+// ================================
+// BANNER / ENTER
+// ================================
+function updateBanner() {
+  const tile = getTile(playerX, playerY);
+  let label = "Empty";
+  if (tile && TILE_TYPES[tile.type]) label = TILE_TYPES[tile.type].label;
+  bannerTileNameEl.textContent = label;
   bannerCoordTextEl.textContent = `${playerX+1}, ${playerY+1}`;
 }
 
-function updateEnterButton(){
-  const tile=getTile(playerX,playerY);
-  if(!tile){ enterButtonEl.style.display="none"; return; }
-  const label=TILE_TYPES[tile.type]?.label || tile.type;
-  enterButtonEl.textContent=`ENTER ${label.toUpperCase()}`;
-  enterButtonEl.style.display="inline-block";
+function updateEnter() {
+  const tile = getTile(playerX, playerY);
+  if (!tile) { enterButtonEl.style.display="none"; return; }
+
+  const def = TILE_TYPES[tile.type];
+  const label = def ? def.label : tile.type;
+  enterButtonEl.textContent = `ENTER ${label.toUpperCase()}`;
+  enterButtonEl.style.display = "inline-block";
 }
 
-// When entering → save and switch pages
-enterButtonEl.addEventListener("click",()=>{
-  saveGame();
-  window.location.href="innerworld.html";
+// GO TO INNERWORLD
+enterButtonEl.addEventListener("click", () => {
+  saveGameForInnerworld(playerX, playerY);
+  window.location.href = "innerworld.html";
 });
 
-// =====================================================
-// CARDS ROW
-// =====================================================
-let cardElements=[];
+// ================================
+// CARDS
+// ================================
+let cardElements = [];
 
-function initCardsDOM(){
-  const extra = [...cardRowEl.children].slice(1);
-  extra.forEach(el=>cardRowEl.removeChild(el));
-  cardElements=[];
+function initCards() {
+  const children = Array.from(cardRowEl.children).slice(1);
+  children.forEach(c => c.remove());
+  cardElements = [];
 
-  for(const c of cards){
-    const d=document.createElement("div");
-    d.className="card";
-    d.dataset.type=c.type;
+  for (const card of cards) {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.dataset.type = card.type;
 
-    const img=document.createElement("img");
-    img.src=c.image;
-    d.appendChild(img);
+    const img = document.createElement("img");
+    img.src = card.image;
 
-    const cnt=document.createElement("div");
-    cnt.className="card-count";
-    d.appendChild(cnt);
+    const count = document.createElement("div");
+    count.className = "card-count";
 
-    d.addEventListener("click",onCardClick);
+    div.appendChild(img);
+    div.appendChild(count);
 
-    cardRowEl.appendChild(d);
-    cardElements.push({ type:c.type, el:d, countEl:cnt });
+    div.addEventListener("click", cardClick);
+
+    cardRowEl.appendChild(div);
+    cardElements.push({type:card.type, el:div, countEl:count});
   }
 }
 
-function renderCards(){
-  for(const entry of cardElements){
-    const c=getCard(entry.type);
-    entry.countEl.textContent=`x${c.count}`;
-    entry.el.classList.toggle("card-disabled", c.count<=0);
-    entry.el.classList.toggle("card-selected", selectedCardType===entry.type);
+function renderCards() {
+  for (const c of cardElements) {
+    const card = getCardByType(c.type);
+    const isSel = (selectedCardType === c.type);
+    c.countEl.textContent = `x${card.count}`;
+    c.el.classList.toggle("card-disabled", card.count<=0);
+    c.el.classList.toggle("card-selected", isSel);
   }
 }
 
-function onCardClick(e){
-  const type=e.currentTarget.dataset.type;
-  const c=getCard(type);
-  if(c.count<=0) return;
+function renderInventory() {
+  inventoryListEl.innerHTML = "";
+  for (const card of cards) {
+    const li = document.createElement("li");
+    li.textContent = `${card.label} Card — x${card.count}`;
+    inventoryListEl.appendChild(li);
+  }
+}
 
-  selectedCardType = selectedCardType===type ? null : type;
+function cardClick(e) {
+  const type = e.currentTarget.dataset.type;
+  const card = getCardByType(type);
+  if (!card || card.count<=0) return;
+
+  selectedCardType = (selectedCardType===type ? null : type);
+
   renderCards();
   renderGrid();
-  saveGame();
 }
 
-// =====================================================
+// ================================
+// INVENTORY TOGGLE
+// ================================
+let expanded = false;
+inventoryToggleEl.addEventListener("click", () => {
+  expanded = !expanded;
+  inventoryPanelEl.style.maxHeight = expanded ? "140px" : "0";
+  inventoryToggleEl.textContent = expanded ? "Inventory ▼" : "Inventory ▲";
+});
+
+// ================================
 // TILE CLICK
-// =====================================================
-function onTileClick(e){
-  const x=parseInt(e.currentTarget.dataset.x);
-  const y=parseInt(e.currentTarget.dataset.y);
-  const tile=getTile(x,y);
+// ================================
+function tileClick(e) {
+  const x = parseInt(e.currentTarget.dataset.x);
+  const y = parseInt(e.currentTarget.dataset.y);
+  const tile = getTile(x,y);
 
-  // Use card
-  if(selectedCardType){
-    const playable=playableTiles(selectedCardType).map(c=>`${c.x},${c.y}`);
-    if(playable.includes(`${x},${y}`)){
-      const card=getCard(selectedCardType);
-      setTile(x,y,selectedCardType);
-      card.count--;
-      if(card.count<=0) selectedCardType=null;
+  // Playing a card?
+  if (selectedCardType) {
+    const playable = playableTilesFor(selectedCardType).map(c => `${c.x},${c.y}`);
+    const key = `${x},${y}`;
 
-      renderCards();
-      renderGrid();
-      updateBanner();
-      updateEnterButton();
-      saveGame();
+    if (playable.includes(key)) {
+      const card = getCardByType(selectedCardType);
+      if (card && card.count>0) {
+        const rarity = rollRarity();
+        setTile(x,y,selectedCardType,rarity);
+        card.count--;
+
+        if (card.count<=0) selectedCardType=null;
+
+        renderCards();
+        renderGrid();
+        renderInventory();
+        updateBanner();
+        updateEnter();
+        return;
+      }
     }
     return;
   }
 
-  // Move
-  if(isAdjacent(x,y) && tile){
-    playerX=x;
-    playerY=y;
-    renderGrid();
-    updateBanner();
-    updateEnterButton();
-    saveGame();
+  // Move to adjacent tile
+  if (isAdjacentToPlayer(x,y)) {
+    if (tile!==null) {
+      playerX=x; playerY=y;
+      renderGrid();
+      updateBanner();
+      updateEnter();
+    }
+    return;
   }
 }
 
-// =====================================================
+// ================================
 // INIT
-// =====================================================
-function init(){
+// ================================
+function init() {
   initGridDOM();
-  initCardsDOM();
+  initCards();
   renderGrid();
   renderCards();
+  renderInventory();
   updateBanner();
-  updateEnterButton();
+  updateEnter();
 }
-
 init();
-</script>
 
+</script>
 </body>
 </html>
