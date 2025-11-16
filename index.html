@@ -27,7 +27,7 @@
     position: fixed;
     inset: 0;
     background: #020617;
-    display: none; /* shown only when no save exists */
+    display: none;
     align-items: center;
     justify-content: center;
     flex-direction: column;
@@ -110,25 +110,25 @@
     white-space: nowrap;
   }
 
-  /* Middle: grid wrapper */
+  /* ===== GRID AREA ===== */
   #gridWrapper {
     flex: 1 1 auto;
-    padding: 8px 12px;
+    padding: 0;
+    margin: 0;
     display: flex;
     justify-content: center;
     align-items: center;
   }
 
-  /* Square grid area */
   #gridSquare {
     position: relative;
-    width: min(90vw, 90vh);
-    max-width: 560px;
+    width: min(98vw, 98vh);
+    max-width: 720px;
     aspect-ratio: 1 / 1;
     background: radial-gradient(circle at top, #1e293b, #020617);
     border-radius: 16px;
     box-shadow: 0 18px 40px rgba(15,23,42,0.9);
-    padding: 10px;
+    padding: 4px;
     box-sizing: border-box;
     display: flex;
   }
@@ -138,7 +138,7 @@
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     grid-template-rows: repeat(5, 1fr);
-    gap: 4px;
+    gap: 2px;
   }
 
   .tile {
@@ -167,6 +167,12 @@
       0 0 18px rgba(250,204,21,0.7);
   }
 
+  .tile-player {
+    box-shadow:
+      0 0 0 2px rgba(96,165,250,0.8),
+      0 0 22px rgba(37,99,235,0.95);
+  }
+
   .tile-player::after {
     content: "⬤";
     position: absolute;
@@ -177,13 +183,7 @@
     text-shadow: 0 0 4px rgba(0,0,0,0.8);
   }
 
-  .tile-player {
-    box-shadow:
-      0 0 0 2px rgba(96,165,250,0.8),
-      0 0 22px rgba(37,99,235,0.95);
-  }
-
-  /* ===== BOTTOM UI (ENTER ONLY) ===== */
+  /* ===== BOTTOM UI (ENTER BUTTON) ===== */
   #bottomUI {
     flex: 0 0 auto;
     background: linear-gradient(to top, #020617, #020617f0);
@@ -380,9 +380,7 @@
     <div id="cardOverlayTitle">Cards</div>
     <button id="cardOverlayClose">✕</button>
   </div>
-  <div id="cardOverlayCards">
-    <!-- cards injected here -->
-  </div>
+  <div id="cardOverlayCards"></div>
 </div>
 
 <script>
@@ -392,7 +390,6 @@
 const SAVE_KEY = "myGameSaveV1";
 const SIZE = 5;
 
-// Tile types
 const TILE_TYPES = {
   home:   { label: "Home",   image: "tile_home.png" },
   plains: { label: "Plains", image: "tile_plains.png" },
@@ -400,20 +397,18 @@ const TILE_TYPES = {
   forest: { label: "Forest", image: "tile_forest.png" }
 };
 
-// Starting cards
 const DEFAULT_CARDS = [
   { type: "plains", label: "Plains", image: "card_plains.png", count: 3 },
   { type: "hills",  label: "Hills",  image: "card_hills.png",  count: 2 },
   { type: "forest", label: "Forest", image: "card_forest.png", count: 2 }
 ];
 
-// Global state
 let world;
 let playerX;
 let playerY;
 let cards;
-let selectedCardType = null; // for tap-twice inside overlay
-let pendingTile = null;      // {x,y} tile we want to play on
+let selectedCardType = null;
+let pendingTile = null;
 let cardMenuOpen = false;
 
 // Create a fresh game state
@@ -425,7 +420,7 @@ function createFreshState() {
   cards = DEFAULT_CARDS.map(c => ({ ...c }));
 }
 
-// Load existing save (returns true if OK)
+// Load existing save
 function loadGame() {
   const raw = localStorage.getItem(SAVE_KEY);
   if (!raw) return false;
@@ -437,43 +432,44 @@ function loadGame() {
     world   = data.world;
     playerX = data.player.x;
     playerY = data.player.y;
-    cards   = data.cards && Array.isArray(data.cards)
+    cards   = Array.isArray(data.cards)
       ? data.cards
       : DEFAULT_CARDS.map(c => ({ ...c }));
 
     return true;
   } catch (e) {
-    console.error("Failed to parse save:", e);
     return false;
   }
 }
 
 // Save current state
 function saveGame() {
-  const data = {
-    world,
-    player: { x: playerX, y: playerY },
-    cards
-  };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  localStorage.setItem(
+    SAVE_KEY,
+    JSON.stringify({
+      world,
+      player: { x: playerX, y: playerY },
+      cards
+    })
+  );
 }
 
 // =====================================================
 // DOM REFS
 // =====================================================
-const newGameScreen   = document.getElementById("newGameScreen");
-const newGameButton   = document.getElementById("newGameButton");
-const outerRoot       = document.getElementById("outerRoot");
-const gridEl          = document.getElementById("grid");
+const newGameScreen = document.getElementById("newGameScreen");
+const newGameButton = document.getElementById("newGameButton");
+const outerRoot     = document.getElementById("outerRoot");
+const gridEl        = document.getElementById("grid");
 const bannerTileNameEl  = document.getElementById("banner-tileName");
 const bannerCoordTextEl = document.getElementById("banner-coordText");
 const enterButtonEl     = document.getElementById("enterButton");
 
 const cardToggleButtonEl = document.getElementById("cardToggleButton");
-const cardOverlayEl        = document.getElementById("cardOverlay");
-const cardOverlayTitleEl   = document.getElementById("cardOverlayTitle");
-const cardOverlayCardsEl   = document.getElementById("cardOverlayCards");
-const cardOverlayCloseEl   = document.getElementById("cardOverlayClose");
+const cardOverlayEl      = document.getElementById("cardOverlay");
+const cardOverlayTitleEl = document.getElementById("cardOverlayTitle");
+const cardOverlayCardsEl = document.getElementById("cardOverlayCards");
+const cardOverlayCloseEl = document.getElementById("cardOverlayClose");
 
 // =====================================================
 // WORLD HELPERS
@@ -483,19 +479,15 @@ function inBounds(x, y) {
 }
 
 function isAdjacentToPlayer(x, y) {
-  const dx = Math.abs(x - playerX);
-  const dy = Math.abs(y - playerY);
-  return (dx + dy === 1);
+  return Math.abs(x - playerX) + Math.abs(y - playerY) === 1;
 }
 
 function getTile(x, y) {
-  if (!inBounds(x, y)) return null;
-  return world[y][x];
+  return inBounds(x, y) ? world[y][x] : null;
 }
 
 function setTile(x, y, type) {
-  if (!inBounds(x, y)) return;
-  world[y][x] = { type };
+  if (inBounds(x, y)) world[y][x] = { type };
 }
 
 function getCardByType(type) {
@@ -519,6 +511,7 @@ let tileElements = [];
 function initGridDOM() {
   gridEl.innerHTML = "";
   tileElements = [];
+
   for (let y = 0; y < SIZE; y++) {
     const row = [];
     for (let x = 0; x < SIZE; x++) {
@@ -540,19 +533,17 @@ function renderGrid() {
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
       const tileDiv = tileElements[y][x];
-      const data = world[y][x];
+      const tileData = world[y][x];
 
       tileDiv.className = "tile";
       tileDiv.style.backgroundImage = "";
 
-      if (!data) {
+      if (!tileData) {
         tileDiv.classList.add("tile-empty");
       } else {
-        const def = TILE_TYPES[data.type];
+        const def = TILE_TYPES[tileData.type];
         if (def && def.image) {
           tileDiv.style.backgroundImage = `url('${def.image}')`;
-        } else {
-          tileDiv.classList.add("tile-empty");
         }
       }
 
@@ -560,9 +551,7 @@ function renderGrid() {
         tileDiv.classList.add("tile-player");
       }
 
-      // Auto-highlight valid build tiles:
-      // empty + adjacent + have at least one card.
-      if (anyCards && data === null && isAdjacentToPlayer(x, y)) {
+      if (anyCards && tileData === null && isAdjacentToPlayer(x, y)) {
         tileDiv.classList.add("tile-highlight-playable");
       }
     }
@@ -575,42 +564,42 @@ function renderGrid() {
 function updateBanner() {
   const tile = getTile(playerX, playerY);
   let label = "Empty";
+
   if (tile && TILE_TYPES[tile.type]) {
     label = TILE_TYPES[tile.type].label;
-  } else if (tile && !TILE_TYPES[tile.type]) {
+  } else if (tile) {
     label = tile.type;
   }
+
   bannerTileNameEl.textContent = label;
   bannerCoordTextEl.textContent = `${playerX + 1}, ${playerY + 1}`;
 }
 
 function updateEnterButton() {
   const tile = getTile(playerX, playerY);
+
   if (!tile) {
     enterButtonEl.style.display = "none";
     return;
   }
+
   const def = TILE_TYPES[tile.type];
   const label = def ? def.label : tile.type;
   enterButtonEl.textContent = `ENTER ${label.toUpperCase()}`;
   enterButtonEl.style.display = "inline-block";
 }
 
-// Go into innerworld
+// When pressing ENTER
 enterButtonEl.addEventListener("click", () => {
   const tile = getTile(playerX, playerY);
   if (!tile) return;
 
-  // Save info for innerworld
   localStorage.setItem("innerworld_entry", JSON.stringify({
     tile: {
       type: tile.type,
       rarity: tile.rarity || "common"
     },
-    playerStart: {
-      x: 250,
-      y: 250
-    }
+    playerStart: { x: 250, y: 250 }
   }));
 
   saveGame();
@@ -618,7 +607,7 @@ enterButtonEl.addEventListener("click", () => {
 });
 
 // =====================================================
-// CARD OVERLAY (DRAWER)
+// CARD OVERLAY
 // =====================================================
 let cardElements = [];
 
@@ -633,17 +622,17 @@ function initCardsDOM() {
 
     const img = document.createElement("img");
     img.src = card.image;
-    img.alt = card.label;
 
-    const countDiv = document.createElement("div");
-    countDiv.className = "card-count";
+    const count = document.createElement("div");
+    count.className = "card-count";
 
     div.appendChild(img);
-    div.appendChild(countDiv);
+    div.appendChild(count);
     div.addEventListener("click", onOverlayCardClick);
 
     cardOverlayCardsEl.appendChild(div);
-    cardElements.push({ type: card.type, el: div, countEl: countDiv });
+
+    cardElements.push({ type: card.type, el: div, countEl: count });
   }
 
   renderCards();
@@ -651,13 +640,13 @@ function initCardsDOM() {
 
 function renderCards() {
   for (const entry of cardElements) {
-    const cardData = getCardByType(entry.type);
-    const hasAny = cardData && cardData.count > 0;
-    const isSelected = (selectedCardType === entry.type);
+    const card = getCardByType(entry.type);
+    const hasCount = card && card.count > 0;
+    const isSelected = selectedCardType === entry.type;
 
-    entry.countEl.textContent = cardData ? `x${cardData.count}` : "x0";
-    entry.el.classList.toggle("card-disabled", !hasAny);
-    entry.el.classList.toggle("card-selected", hasAny && isSelected);
+    entry.countEl.textContent = card ? `x${card.count}` : "x0";
+    entry.el.classList.toggle("card-selected", hasCount && isSelected);
+    entry.el.classList.toggle("card-disabled", !hasCount);
   }
 }
 
@@ -666,12 +655,13 @@ function openCardOverlay(reason) {
   cardOverlayEl.style.display = "flex";
 
   if (reason === "tile" && pendingTile) {
+    const { x, y } = pendingTile;
     cardOverlayTitleEl.textContent =
-      `Select a card for (${pendingTile.x + 1}, ${pendingTile.y + 1})`;
+      `Select a card for (${x + 1}, ${y + 1})`;
   } else {
-    cardOverlayTitleEl.textContent = "Cards";
     pendingTile = null;
     selectedCardType = null;
+    cardOverlayTitleEl.textContent = "Cards";
   }
 
   renderCards();
@@ -679,38 +669,29 @@ function openCardOverlay(reason) {
 
 function closeCardOverlay() {
   cardMenuOpen = false;
-  cardOverlayEl.style.display = "none";
   pendingTile = null;
   selectedCardType = null;
+  cardOverlayEl.style.display = "none";
   renderCards();
 }
 
-// Floating button: just browse cards (no pending tile)
 cardToggleButtonEl.addEventListener("click", () => {
-  if (cardMenuOpen) {
-    closeCardOverlay();
-  } else {
-    openCardOverlay("manual");
-  }
+  if (cardMenuOpen) closeCardOverlay();
+  else openCardOverlay("manual");
 });
 
-cardOverlayCloseEl.addEventListener("click", () => {
-  closeCardOverlay();
-});
+cardOverlayCloseEl.addEventListener("click", closeCardOverlay);
 
-// Overlay card click: tap once to select, twice to confirm (if pendingTile)
 function onOverlayCardClick(e) {
   const type = e.currentTarget.dataset.type;
   const card = getCardByType(type);
   if (!card || card.count <= 0) return;
 
-  // If we already selected this card and have a pending tile → confirm play
   if (pendingTile && selectedCardType === type) {
     placeCardOnPendingTile(type);
     return;
   }
 
-  // Otherwise just select this card visually
   selectedCardType = type;
   renderCards();
 }
@@ -720,20 +701,14 @@ function placeCardOnPendingTile(type) {
 
   const { x, y } = pendingTile;
 
-  // Safety: ensure tile is still valid
   if (!isAdjacentToPlayer(x, y)) return;
   if (getTile(x, y) !== null) return;
 
   const card = getCardByType(type);
   if (!card || card.count <= 0) return;
 
-  // Play card
   setTile(x, y, type);
   card.count--;
-
-  if (card.count <= 0) {
-    selectedCardType = null;
-  }
 
   pendingTile = null;
   saveGame();
@@ -745,16 +720,14 @@ function placeCardOnPendingTile(type) {
 }
 
 // =====================================================
-// TILE CLICK
+// TILE CLICK HANDLER
 // =====================================================
 function onTileClick(e) {
   const x = parseInt(e.currentTarget.dataset.x, 10);
   const y = parseInt(e.currentTarget.dataset.y, 10);
   const tile = getTile(x, y);
-
   const adjacent = isAdjacentToPlayer(x, y);
 
-  // Case 1: empty, adjacent, and we have cards → choose card for this tile
   if (tile === null && adjacent && canPlayAnyCard()) {
     pendingTile = { x, y };
     selectedCardType = null;
@@ -762,7 +735,6 @@ function onTileClick(e) {
     return;
   }
 
-  // Case 2: move player (adjacent & not empty)
   if (tile !== null && adjacent) {
     playerX = x;
     playerY = y;
@@ -776,14 +748,11 @@ function onTileClick(e) {
     return;
   }
 
-  // Case 3: click elsewhere — just close overlay if open
-  if (cardMenuOpen) {
-    closeCardOverlay();
-  }
+  if (cardMenuOpen) closeCardOverlay();
 }
 
 // =====================================================
-// INIT UI AFTER STATE EXISTS
+// INIT UI
 // =====================================================
 function initUI() {
   initGridDOM();
@@ -795,13 +764,12 @@ function initUI() {
 }
 
 // =====================================================
-// BOOTSTRAP: CHECK FOR EXISTING SAVE OR SHOW NEW GAME
+// BOOTSTRAP
 // =====================================================
 (function bootstrap() {
   const hasSave = loadGame();
 
   if (!hasSave) {
-    // No save yet → show new game screen
     outerRoot.style.display = "none";
     newGameScreen.style.display = "flex";
 
@@ -813,7 +781,6 @@ function initUI() {
       initUI();
     });
   } else {
-    // Save exists → normal start
     newGameScreen.style.display = "none";
     outerRoot.style.display = "flex";
     initUI();
