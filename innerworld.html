@@ -3,14 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport"
-      content="width=device-width,
-               initial-scale=1.0,
-               viewport-fit=cover,
-               user-scalable=no" />
+      content="width=device-width,initial-scale=1.0,viewport-fit=cover,user-scalable=no" />
 <title>Innerworld</title>
 
 <style>
-/* Basic layout for innerworld */
 html, body {
   margin: 0; padding: 0;
   width: 100vw; height: 100vh;
@@ -26,25 +22,7 @@ html, body {
   height: calc(90vh - env(safe-area-inset-bottom));
 }
 
-/* Bottom UI bar (your existing stuff) */
-#uiButtons {
-  position: fixed;
-  bottom: calc(1.5vh + env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 1.5vh;
-  z-index: 9999;
-  pointer-events: none;
-  font-family: sans-serif;
-  color: white;
-}
-
-.ui-btn {
-  pointer-events: auto;
-}
-
-/* Joystick shell (not yet wired, but safe to keep) */
+/* Joystick */
 #joystick {
   position: absolute;
   width: 120px;
@@ -56,24 +34,13 @@ html, body {
   z-index: 5000;
 }
 #stick {
+  position: absolute;
   width: 60px;
   height: 60px;
   border-radius: 50%;
   background: rgba(255,255,255,0.4);
-  position: absolute;
   left: 30px;
   top: 30px;
-}
-
-/* Fade overlay (for future transitions) */
-#fadeOverlay {
-  position: fixed;
-  inset: 0;
-  background: black;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .4s;
-  z-index: 12000;
 }
 </style>
 </head>
@@ -82,24 +49,12 @@ html, body {
 
 <canvas id="gameCanvas"></canvas>
 
-<div id="uiButtons">
-  <div id="defaultUI">Use WASD / Arrow keys to move</div>
-  <button id="harvestButton" class="ui-btn">HARVEST BLOSSOM</button>
-  <button id="fightButton"   class="ui-btn">FIGHT</button>
-  <button id="runButton"     class="ui-btn">RUN</button>
-  <button id="hitButton"     class="ui-btn">HIT</button>
-  <button id="smackButton"   class="ui-btn">SMACK</button>
-  <button id="punchButton"   class="ui-btn">PUNCH</button>
-  <button id="kickButton"    class="ui-btn">KICK</button>
-</div>
-
+<!-- Joystick -->
 <div id="joystick"><div id="stick"></div></div>
-
-<div id="fadeOverlay"></div>
 
 <script>
 // ======================================================
-// LOAD SAVE (tile type + rarity + player start)
+// LOAD ENTRY FROM OUTERWORLD
 // ======================================================
 const raw = localStorage.getItem("innerworld_entry");
 if (!raw) {
@@ -108,9 +63,9 @@ if (!raw) {
 }
 const entry = JSON.parse(raw);
 
-const TILE_TYPE    = entry.tile.type;      // plains / forest / hills / home
-const TILE_RARITY  = entry.tile.rarity;    // common / uncommon / rare
-const PLAYER_START = entry.playerStart;    // { x, y }
+const TILE_TYPE    = entry.tile.type;
+const TILE_RARITY  = entry.tile.rarity;
+const PLAYER_START = entry.playerStart;
 
 // ======================================================
 // CANVAS
@@ -126,7 +81,7 @@ resize();
 window.addEventListener("resize", resize);
 
 // ======================================================
-// ASSETS (DYNAMIC)
+// ASSETS: dynamic background + collision map
 // ======================================================
 const bg = new Image();
 bg.src = `innerworld/${TILE_TYPE}_${TILE_RARITY}_bg.png`;
@@ -134,33 +89,21 @@ bg.src = `innerworld/${TILE_TYPE}_${TILE_RARITY}_bg.png`;
 const collisionImg = new Image();
 collisionImg.src = `collision/${TILE_TYPE}_${TILE_RARITY}_col.png`;
 
-const blossomImg = new Image();
-blossomImg.src = "item_blossom.png";
-
-const monsterIdleImg = new Image();
-monsterIdleImg.src = "monster_starwolf_idle.png";
-
-const monsterAttackImg = new Image();
-monsterAttackImg.src = "monster_starwolf_attack.png";
-
-const monsterHurtImg = new Image();
-monsterHurtImg.src = "monster_starwolf_hurt.png";
-
-const frames = ["player1.png", "player2.png", "player3.png"].map(src => {
+const frames = ["player1.png","player2.png","player3.png"].map(src => {
   const i = new Image();
   i.src = src;
   return i;
 });
 
 // ======================================================
-// COLLISION MAP
+// COLLISION MAP SETUP
 // ======================================================
 const colCanvas = document.createElement("canvas");
-const colCtx    = colCanvas.getContext("2d");
+const colCtx = colCanvas.getContext("2d");
 let collisionReady = false;
 
 collisionImg.onload = () => {
-  colCanvas.width  = collisionImg.width;
+  colCanvas.width = collisionImg.width;
   colCanvas.height = collisionImg.height;
   colCtx.drawImage(collisionImg, 0, 0);
   collisionReady = true;
@@ -170,14 +113,13 @@ function pixelBlocked(x, y) {
   if (!collisionReady) return false;
   if (x < 0 || y < 0 || x >= colCanvas.width || y >= colCanvas.height) return true;
   const d = colCtx.getImageData(x, y, 1, 1).data;
-  // Treat dark pixels as "solid wall"
-  return d[0] < 50 && d[1] < 50 && d[2] < 50;
+  return (d[0] < 50 && d[1] < 50 && d[2] < 50);
 }
 
 function circleBlocked(cx, cy, r) {
-  const n = 10;
-  for (let i = 0; i < n; i++) {
-    const a  = (i / n) * Math.PI * 2;
+  const N = 10;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
     const px = cx + Math.cos(a) * r;
     const py = cy + Math.sin(a) * r;
     if (pixelBlocked(px, py)) return true;
@@ -188,164 +130,200 @@ function circleBlocked(cx, cy, r) {
 // ======================================================
 // PLAYER
 // ======================================================
-let DEBUG_HITBOX = false;
-
 let player = {
   x: PLAYER_START.x,
   y: PLAYER_START.y,
-  speed: 180,         // pixels per second
+  speed: 180,
   frame: 0,
   frameTimer: 0,
   scale: 0.20,
   facingLeft: false,
   moving: false,
   hitR: 40,
-  hitOffsetY: 10,
-  hpMax: 20,
-  hp: 20,
-  hitFlash: 0,
-  lungeOffsetX: 0,
-  lungeOffsetY: 0
+  hitOffsetY: 10
 };
 
 // ======================================================
-// INPUT (KEYBOARD)
+// CAMERA (smooth follow)
 // ======================================================
-const keys = {
-  up: false,
-  down: false,
-  left: false,
-  right: false
-};
+let camera = { x: 0, y: 0 };
 
-function setKey(e, isDown) {
-  switch (e.key) {
-    case "ArrowUp":
-    case "w":
-    case "W":
-      keys.up = isDown; break;
-    case "ArrowDown":
-    case "s":
-    case "S":
-      keys.down = isDown; break;
-    case "ArrowLeft":
-    case "a":
-    case "A":
-      keys.left = isDown; break;
-    case "ArrowRight":
-    case "d":
-    case "D":
-      keys.right = isDown; break;
+function clampCamera() {
+  if (bg.width > 0 && bg.height > 0) {
+    camera.x = Math.max(0, Math.min(camera.x, bg.width - canvas.width));
+    camera.y = Math.max(0, Math.min(camera.y, bg.height - canvas.height));
   }
 }
 
-window.addEventListener("keydown", e => setKey(e, true));
-window.addEventListener("keyup",   e => setKey(e, false));
+function updateCamera() {
+  const tx = player.x - canvas.width / 2;
+  const ty = player.y - canvas.height / 2;
+  camera.x += (tx - camera.x) * 0.1;
+  camera.y += (ty - camera.y) * 0.1;
+  clampCamera();
+}
 
 // ======================================================
-// UPDATE
+// ANALOG JOYSTICK
 // ======================================================
-function update(dt) {
-  let vx = 0;
-  let vy = 0;
+const joyDiv  = document.getElementById("joystick");
+const stick   = document.getElementById("stick");
 
-  if (keys.left)  vx -= 1;
-  if (keys.right) vx += 1;
-  if (keys.up)    vy -= 1;
-  if (keys.down)  vy += 1;
+let joy = {
+  active:false,
+  dx:0, dy:0,
+  originX:0, originY:0
+};
 
-  if (vx !== 0 || vy !== 0) {
-    // Normalise
+canvas.addEventListener("touchstart", e => {
+  const t = e.touches[0];
+  joy.active  = true;
+  joy.originX = t.clientX;
+  joy.originY = t.clientY;
+
+  joyDiv.style.left = (t.clientX - 60) + "px";
+  joyDiv.style.top  = (t.clientY - 60) + "px";
+  joyDiv.style.display = "block";
+
+  stick.style.left = "30px";
+  stick.style.top  = "30px";
+});
+
+canvas.addEventListener("touchmove", e => {
+  if (!joy.active) return;
+  const t = e.touches[0];
+  const dx = t.clientX - joy.originX;
+  const dy = t.clientY - joy.originY;
+
+  const dist = Math.hypot(dx, dy);
+  const max = 40;
+
+  let ndx = dx, ndy = dy;
+  if (dist > max) {
+    ndx = dx / dist * max;
+    ndy = dy / dist * max;
+  }
+
+  stick.style.left = (30 + ndx) + "px";
+  stick.style.top  = (30 + ndy) + "px";
+
+  joy.dx = ndx / max;
+  joy.dy = ndy / max;
+});
+
+canvas.addEventListener("touchend", () => {
+  joy.active = false;
+  joy.dx = joy.dy = 0;
+  joyDiv.style.display = "none";
+});
+
+// ======================================================
+// KEYBOARD (optional)
+// ======================================================
+const keys = { up:false, down:false, left:false, right:false };
+
+function setKey(e, v) {
+  switch(e.key){
+    case "w": case "ArrowUp":    keys.up = v; break;
+    case "s": case "ArrowDown":  keys.down = v; break;
+    case "a": case "ArrowLeft":  keys.left = v; break;
+    case "d": case "ArrowRight": keys.right = v; break;
+  }
+}
+window.addEventListener("keydown", e => setKey(e,true));
+window.addEventListener("keyup",   e => setKey(e,false));
+
+// ======================================================
+// UPDATE (WITH SLIDING COLLISION A)
+// ======================================================
+function update(dt){
+  let vx = joy.dx;
+  let vy = joy.dy;
+
+  // Keyboard overrides (optional)
+  if (keys.left)  vx = -1;
+  if (keys.right) vx = 1;
+  if (keys.up)    vy = -1;
+  if (keys.down)  vy = 1;
+
+  player.moving = (Math.abs(vx) > 0.05 || Math.abs(vy) > 0.05);
+
+  if (player.moving) {
     const len = Math.hypot(vx, vy);
-    vx /= len;
-    vy /= len;
+    if (len > 0) { vx /= len; vy /= len; }
 
-    const moveX = vx * player.speed * dt;
-    const moveY = vy * player.speed * dt;
+    const nextX = player.x + vx * player.speed * dt;
+    const nextY = player.y + vy * player.speed * dt;
 
-    const nextX = player.x + moveX;
-    const nextY = player.y + moveY;
-
-    // Determine facing
-    if (moveX < 0) player.facingLeft = true;
-    if (moveX > 0) player.facingLeft = false;
-
-    // Only move if not colliding with walls
-    if (!circleBlocked(nextX, nextY + player.hitOffsetY, player.hitR)) {
+    // 🔥 Slide movement logic (A)
+    if (!circleBlocked(nextX, player.y + player.hitOffsetY, player.hitR))
       player.x = nextX;
-      player.y = nextY;
-    }
 
-    player.moving = true;
-    // Animate walking
+    if (!circleBlocked(player.x, nextY + player.hitOffsetY, player.hitR))
+      player.y = nextY;
+
+    // Animation
     player.frameTimer += dt;
     if (player.frameTimer > 0.15) {
-      player.frameTimer = 0;
       player.frame = (player.frame + 1) % frames.length;
+      player.frameTimer = 0;
     }
+
+    if (vx < 0) player.facingLeft = true;
+    else if (vx > 0) player.facingLeft = false;
+
   } else {
-    player.moving = false;
     player.frame = 0;
   }
+
+  updateCamera();
 }
 
 // ======================================================
 // DRAW
 // ======================================================
-function draw() {
-  // Clear
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // Draw background (stretched to canvas)
-  if (bg.complete && bg.width > 0 && bg.height > 0) {
-    ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+  if (bg.complete && bg.width > 0) {
+    ctx.drawImage(
+      bg,
+      camera.x, camera.y, canvas.width, canvas.height,
+      0, 0, canvas.width, canvas.height
+    );
+  }
+
+  const img = frames[player.frame];
+  const w = img.width * player.scale;
+  const h = img.height * player.scale;
+
+  const drawX = player.x - camera.x - w/2;
+  const drawY = player.y - camera.y - h/2;
+
+  ctx.save();
+  if (player.facingLeft) {
+    ctx.translate(drawX + w/2, drawY + h/2);
+    ctx.scale(-1,1);
+    ctx.drawImage(img, -w/2, -h/2, w, h);
   } else {
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, drawX, drawY, w, h);
   }
-
-  // Draw player
-  const img = frames[Math.floor(player.frame) % frames.length];
-  if (img.complete && img.width > 0 && img.height > 0) {
-    const pw = img.width  * player.scale;
-    const ph = img.height * player.scale;
-
-    ctx.save();
-    ctx.translate(player.x, player.y);
-
-    if (player.facingLeft) {
-      ctx.scale(-1, 1);
-    }
-
-    ctx.drawImage(img, -pw / 2, -ph / 2, pw, ph);
-    ctx.restore();
-  }
-
-  // Optional: draw hitbox for debugging
-  if (DEBUG_HITBOX) {
-    ctx.strokeStyle = "red";
-    ctx.beginPath();
-    ctx.arc(player.x, player.y + player.hitOffsetY, player.hitR, 0, Math.PI * 2);
-    ctx.stroke();
-  }
+  ctx.restore();
 }
 
 // ======================================================
 // MAIN LOOP
 // ======================================================
-let lastTime = 0;
-
-function loop(timestamp) {
-  if (!lastTime) lastTime = timestamp;
-  const dt = (timestamp - lastTime) / 1000;
-  lastTime = timestamp;
+let last = 0;
+function loop(t){
+  const dt = (t - last) / 1000;
+  last = t;
 
   update(dt);
   draw();
 
   requestAnimationFrame(loop);
 }
-
 requestAnimationFrame(loop);
 </script>
 </body>
