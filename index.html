@@ -555,6 +555,21 @@ function updateEnterButton() {
 
 // Go into innerworld
 enterButtonEl.addEventListener("click", () => {
+  const tile = getTile(playerX, playerY);
+  if (!tile) return;
+
+  // 🔥 Save info for innerworld
+  localStorage.setItem("innerworld_entry", JSON.stringify({
+    tile: {
+      type: tile.type,
+      rarity: tile.rarity || "common"
+    },
+    playerStart: {
+      x: 250,
+      y: 250
+    }
+  }));
+
   saveGame();
   window.location.href = "innerworld.html";
 });
