@@ -3,49 +3,138 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>Outerworld</title>
+      content="width=device-width,initial-scale=1.0,viewport-fit=cover,user-scalable=no" />
+<title>Outerworld — Persistent 5x5 Grid</title>
 
 <style>
   html, body {
-    margin: 0; padding: 0;
-    width: 100vw; height: 100vh;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #05070b;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #f9fafb;
     overflow: hidden;
-    background: #222;
-    font-family: sans-serif;
-    color: white;
-    touch-action: none;
   }
 
-  /* Banner */
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== NEW GAME SCREEN ===== */
+  #newGameScreen {
+    position: fixed;
+    inset: 0;
+    background: #020617;
+    display: none; /* shown only when no save exists */
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 20000;
+  }
+
+  #newGameTitle {
+    font-size: 18px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #e5e7eb;
+  }
+
+  #newGameButton {
+    padding: 10px 22px;
+    font-size: 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(249,250,251,0.9);
+    background: linear-gradient(to right, #22c55e, #4ade80);
+    color: #022c22;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 8px 18px rgba(34,197,94,0.6);
+  }
+
+  #newGameButton:active {
+    transform: translateY(1px);
+    box-shadow: 0 4px 10px rgba(34,197,94,0.6);
+  }
+
+  /* ===== MAIN LAYOUT ===== */
+  #outerRoot {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* Top banner */
   #banner {
-    width: 100%;
-    height: 8vh;
-    background: #333;
-    border-bottom: 3px solid #555;
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    background: linear-gradient(to right, #111827, #020617);
+    border-bottom: 1px solid rgba(148,163,184,0.3);
+    font-size: 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 2vw;
-    box-sizing: border-box;
-    font-size: 2.4vh;
+    gap: 8px;
   }
 
-  /* Grid container */
-  #gridArea {
-    width: 100%;
-    height: 62vh;
+  #banner-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  #banner-title {
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #cbd5f5;
+  }
+
+  #banner-sub {
+    font-size: 12px;
+    color: #9ca3af;
+  }
+
+  #banner-coords {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(15,23,42,0.9);
+    border: 1px solid rgba(148,163,184,0.5);
+    color: #e5e7eb;
+    white-space: nowrap;
+  }
+
+  /* Middle: grid wrapper */
+  #gridWrapper {
+    flex: 1 1 auto;
+    padding: 8px 12px;
     display: flex;
     justify-content: center;
     align-items: center;
   }
 
-  /* 5x5 grid */
+  /* Square grid area */
+  #gridSquare {
+    position: relative;
+    width: min(90vw, 90vh);
+    max-width: 560px;
+    aspect-ratio: 1 / 1;
+    background: radial-gradient(circle at top, #1e293b, #020617);
+    border-radius: 16px;
+    box-shadow: 0 18px 40px rgba(15,23,42,0.9);
+    padding: 10px;
+    box-sizing: border-box;
+    display: flex;
+  }
+
   #grid {
-    width: 80vw;
-    height: 80vw;
-    max-height: 62vh;
-    max-width: 62vh;
+    flex: 1;
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     grid-template-rows: repeat(5, 1fr);
@@ -53,319 +142,560 @@
   }
 
   .tile {
-    background: #111;
-    border: 3px solid #444;
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #020617;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(15,23,42,0.9);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+
+  .tile:active { transform: scale(0.97); }
+
+  .tile-empty {
+    background-color: #020617;
+    box-shadow: inset 0 0 0 1px rgba(31,41,55,0.8);
+  }
+
+  .tile-highlight-playable {
+    box-shadow:
+      0 0 0 2px rgba(250,204,21,0.9),
+      0 0 18px rgba(250,204,21,0.7);
+  }
+
+  .tile-player::after {
+    content: "⬤";
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 18px;
+    text-shadow: 0 0 4px rgba(0,0,0,0.8);
+  }
+
+  .tile-player {
+    box-shadow:
+      0 0 0 2px rgba(96,165,250,0.8),
+      0 0 22px rgba(37,99,235,0.95);
+  }
+
+  /* ===== BOTTOM UI ===== */
+  #bottomUI {
+    flex: 0 0 auto;
+    background: linear-gradient(to top, #020617, #020617f0);
+    border-top: 1px solid rgba(148,163,184,0.4);
+    padding: 6px 10px 8px;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  #enterRow {
+    display: flex;
     justify-content: center;
-    font-size: 2vh;
+    margin-bottom: 2px;
+  }
+
+  #enterButton {
+    display: none;
+    padding: 6px 18px;
+    font-size: 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(249,250,251,0.9);
+    background: linear-gradient(to right, #22c55e, #4ade80);
+    color: #022c22;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
     cursor: pointer;
   }
 
-  /* Card bar */
-  #cardBar {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100vw;
-    height: 30vh;
-    background: #111;
-    border-top: 3px solid #555;
+  /* Cards */
+  #cardRow {
     display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-  }
-
-  #cardBarTitle {
-    padding: 1vh;
-    text-align: center;
-    font-size: 2.4vh;
-    border-bottom: 2px solid #333;
-  }
-
-  #cards {
-    flex: 1;
-    display: flex;
-    overflow-x: auto;
-    gap: 2vw;
     align-items: center;
-    padding: 2vw;
+    gap: 10px;
+    overflow-x: auto;
+  }
+
+  #cardRowTitle {
+    font-size: 11px;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-right: 4px;
+    white-space: nowrap;
   }
 
   .card {
-    width: 18vw;
-    height: 24vw;
-    background: #222;
-    border: 3px solid #888;
-    border-radius: 1vh;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: 2vh;
+    position: relative;
+    flex: 0 0 auto;
+    width: 60px;
+    height: 84px;
+    border-radius: 8px;
+    background: radial-gradient(circle at top, #0f172a, #020617);
+    border: 1px solid rgba(148,163,184,0.7);
+    box-shadow: 0 8px 16px rgba(15,23,42,0.9);
+    overflow: hidden;
     cursor: pointer;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+    transform-origin: center bottom;
+    transition:
+      transform 0.12s ease,
+      box-shadow 0.12s ease,
+      border-color 0.12s ease,
+      background 0.12s ease;
   }
 
-  .card.selected {
-    border-color: #fff;
-    transform: scale(1.12);
+  .card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
-  /* Tile rarity borders */
-  .rarity-common   { border-color: #8a5a37 !important; }
-  .rarity-uncommon { border-color: #c0c0c0 !important; }
-  .rarity-rare     { border-color: #ffd700 !important; }
-  .rarity-special  { border-color: #00c8b4 !important; }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(15,23,42,0.9);
+  }
 
-  .highlight {
-    outline: 4px solid rgba(255,255,0,0.7);
+  .card-selected {
+    transform: translateY(-6px) scale(1.08);
+    border-color: rgba(250,204,21,1);
+    box-shadow:
+      0 0 0 2px rgba(250,204,21,0.75),
+      0 14px 26px rgba(250,204,21,0.55);
+    background: radial-gradient(circle at top, #facc15, #0f172a);
+  }
+
+  .card-disabled {
+    opacity: 0.35;
+    cursor: default;
+    box-shadow: none;
+  }
+
+  .card-count {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    padding: 2px 5px;
+    border-radius: 999px;
+    font-size: 10px;
+    background: rgba(15,23,42,0.9);
+    color: #e5e7eb;
+    border: 1px solid rgba(148,163,184,0.8);
   }
 </style>
 </head>
 <body>
 
-<!-- Banner -->
-<div id="banner">
-  <div id="bannerLeft">Day 1</div>
-  <div id="bannerRight">Tile: —</div>
+<!-- ===== NEW GAME OVERLAY ===== -->
+<div id="newGameScreen">
+  <div id="newGameTitle">New World</div>
+  <button id="newGameButton">Start New Game</button>
 </div>
 
-<!-- Main grid -->
-<div id="gridArea">
-  <div id="grid"></div>
-</div>
+<!-- ===== MAIN OUTERWORLD UI ===== -->
+<div id="outerRoot">
+  <!-- TOP BANNER -->
+  <div id="banner">
+    <div id="banner-left">
+      <div id="banner-title">Outerworld</div>
+      <div id="banner-sub">Tile: <span id="banner-tileName">Home</span></div>
+    </div>
+    <div id="banner-coords">
+      Pos: <span id="banner-coordText">3, 3</span>
+    </div>
+  </div>
 
-<!-- Card bar -->
-<div id="cardBar">
-  <div id="cardBarTitle">Your Cards</div>
-  <div id="cards"></div>
+  <!-- GRID AREA -->
+  <div id="gridWrapper">
+    <div id="gridSquare">
+      <div id="grid"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM UI -->
+  <div id="bottomUI">
+    <div id="enterRow">
+      <button id="enterButton">ENTER</button>
+    </div>
+
+    <div id="cardRow">
+      <div id="cardRowTitle">Cards</div>
+      <!-- Cards injected here -->
+    </div>
+  </div>
 </div>
 
 <script>
-/* ============================================================
-   SAVE SYSTEM
-============================================================ */
+// =====================================================
+// SAVE SYSTEM & BASE DATA
+// =====================================================
+const SAVE_KEY = "myGameSaveV1";
+const SIZE = 5;
 
-const SAVE_KEY = "myGameSave";
-
-const defaultSave = {
-  day: 1,
-  player: {
-    currentTile: { x: 2, y: 2 },
-    inventory: {
-      card_plains: 2,
-      card_forest: 2,
-      card_hills: 1
-    }
-  },
-  world: [] // 5×5 grid
+// Tile types
+const TILE_TYPES = {
+  home:   { label: "Home",   image: "tile_home.png" },
+  plains: { label: "Plains", image: "tile_plains.png" },
+  hills:  { label: "Hills",  image: "tile_hills.png" },
+  forest: { label: "Forest", image: "tile_forest.png" }
 };
 
+// Starting cards
+const DEFAULT_CARDS = [
+  { type: "plains", label: "Plains", image: "card_plains.png", count: 3 },
+  { type: "hills",  label: "Hills",  image: "card_hills.png",  count: 2 },
+  { type: "forest", label: "Forest", image: "card_forest.png", count: 2 }
+];
+
+// Global state
+let world;
+let playerX;
+let playerY;
+let cards;
+let selectedCardType = null;
+
+// Create a fresh game state
+function createFreshState() {
+  world = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+  playerX = 2;
+  playerY = 2;
+  world[playerY][playerX] = { type: "home" };
+  cards = DEFAULT_CARDS.map(c => ({ ...c }));
+}
+
+// Load existing save (returns true if OK)
 function loadGame() {
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (!raw) return false;
+
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return structuredClone(defaultSave);
-    return { ...defaultSave, ...JSON.parse(raw) };
-  } catch {
-    return structuredClone(defaultSave);
+    const data = JSON.parse(raw);
+    if (!data.world || !data.player) return false;
+
+    world   = data.world;
+    playerX = data.player.x;
+    playerY = data.player.y;
+    cards   = data.cards && Array.isArray(data.cards)
+      ? data.cards
+      : DEFAULT_CARDS.map(c => ({ ...c }));
+
+    return true;
+  } catch (e) {
+    console.error("Failed to parse save:", e);
+    return false;
   }
 }
 
-function saveGame(game) {
-  localStorage.setItem(SAVE_KEY, JSON.stringify(game));
+// Save current state
+function saveGame() {
+  const data = {
+    world,
+    player: { x: playerX, y: playerY },
+    cards
+  };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
 }
 
-let game = loadGame();
+// =====================================================
+// DOM REFS
+// =====================================================
+const newGameScreen   = document.getElementById("newGameScreen");
+const newGameButton   = document.getElementById("newGameButton");
+const outerRoot       = document.getElementById("outerRoot");
+const gridEl          = document.getElementById("grid");
+const bannerTileNameEl  = document.getElementById("banner-tileName");
+const bannerCoordTextEl = document.getElementById("banner-coordText");
+const enterButtonEl     = document.getElementById("enterButton");
+const cardRowEl         = document.getElementById("cardRow");
 
-// Init world grid if missing
-if (!game.world || game.world.length === 0) {
-  game.world = [];
-  for (let y = 0; y < 5; y++) {
-    let row = [];
-    for (let x = 0; x < 5; x++) {
-      row.push({
-        biome: (x===2 && y===2) ? "Home" : "empty",
-        rarity: (x===2 && y===2) ? "special" : null,
-        events: [],
-        discovered: (x===2 && y===2)
-      });
+// =====================================================
+// WORLD HELPERS
+// =====================================================
+function inBounds(x, y) {
+  return x >= 0 && x < SIZE && y >= 0 && y < SIZE;
+}
+
+function isAdjacentToPlayer(x, y) {
+  const dx = Math.abs(x - playerX);
+  const dy = Math.abs(y - playerY);
+  return (dx + dy === 1);
+}
+
+function getTile(x, y) {
+  if (!inBounds(x, y)) return null;
+  return world[y][x];
+}
+
+function setTile(x, y, type) {
+  if (!inBounds(x, y)) return;
+  world[y][x] = { type };
+}
+
+function getCardByType(type) {
+  return cards.find(c => c.type === type);
+}
+
+function cardAvailable(type) {
+  const c = getCardByType(type);
+  return c && c.count > 0;
+}
+
+function getPlayableTilesForCard(type) {
+  if (!cardAvailable(type)) return [];
+  const coords = [];
+  const dirs = [
+    { dx:  1, dy:  0 },
+    { dx: -1, dy:  0 },
+    { dx:  0, dy:  1 },
+    { dx:  0, dy: -1 }
+  ];
+  for (const {dx, dy} of dirs) {
+    const nx = playerX + dx;
+    const ny = playerY + dy;
+    if (!inBounds(nx, ny)) continue;
+    if (world[ny][nx] === null) {
+      coords.push({ x: nx, y: ny });
     }
-    game.world.push(row);
   }
-  saveGame(game);
+  return coords;
 }
 
-/* ====================================================================
-   BIOME CARD DEFINITIONS
-==================================================================== */
-const cardData = {
-  card_plains:  { biome: "Plains" },
-  card_forest:  { biome: "Forest" },
-  card_hills:   { biome: "Hills" }
-};
+// =====================================================
+// GRID DOM
+// =====================================================
+let tileElements = [];
 
-const rarityWeights = {
-  common:   0.70,
-  uncommon: 0.22,
-  rare:     0.08
-};
-
-function rollRarity() {
-  const r = Math.random();
-  if (r < rarityWeights.common) return "common";
-  if (r < rarityWeights.common + rarityWeights.uncommon) return "uncommon";
-  return "rare";
-}
-
-/* ====================================================================
-   UI + GRID RENDER
-==================================================================== */
-
-const gridDiv = document.getElementById("grid");
-const cardsDiv = document.getElementById("cards");
-const bannerLeft = document.getElementById("bannerLeft");
-const bannerRight = document.getElementById("bannerRight");
-
-let selectedCard = null;
-
-function refreshBanner() {
-  bannerLeft.textContent = `Day ${game.day}`;
-
-  const { x, y } = game.player.currentTile;
-  const t = game.world[y][x];
-
-  bannerRight.textContent = `Tile: ${t.biome} (${t.rarity || "-"})`;
-}
-
-function createTileElement(x, y, tile) {
-  const div = document.createElement("div");
-  div.className = "tile";
-
-  // Color border by rarity
-  if (tile.rarity) {
-    div.classList.add("rarity-" + tile.rarity);
+function initGridDOM() {
+  gridEl.innerHTML = "";
+  tileElements = [];
+  for (let y = 0; y < SIZE; y++) {
+    const row = [];
+    for (let x = 0; x < SIZE; x++) {
+      const tileDiv = document.createElement("div");
+      tileDiv.className = "tile";
+      tileDiv.dataset.x = x;
+      tileDiv.dataset.y = y;
+      tileDiv.addEventListener("click", onTileClick);
+      gridEl.appendChild(tileDiv);
+      row.push(tileDiv);
+    }
+    tileElements.push(row);
   }
-
-  div.textContent = tile.biome === "empty" ? "" : tile.biome[0];
-
-  div.addEventListener("click", () => onTileClick(x, y));
-
-  return div;
 }
 
 function renderGrid() {
-  gridDiv.innerHTML = "";
-  for (let y = 0; y < 5; y++) {
-    for (let x = 0; x < 5; x++) {
-      const tile = game.world[y][x];
-      const el = createTileElement(x, y, tile);
-      gridDiv.appendChild(el);
-    }
-  }
-}
+  const playable = selectedCardType
+    ? getPlayableTilesForCard(selectedCardType).map(c => `${c.x},${c.y}`)
+    : [];
 
-function renderCards() {
-  cardsDiv.innerHTML = "";
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const tileDiv = tileElements[y][x];
+      const data = world[y][x];
 
-  for (let key in game.player.inventory) {
-    if (game.player.inventory[key] <= 0) continue;
+      tileDiv.className = "tile";
+      tileDiv.style.backgroundImage = "";
 
-    const div = document.createElement("div");
-    div.className = "card";
-    if (selectedCard === key) div.classList.add("selected");
+      if (!data) {
+        tileDiv.classList.add("tile-empty");
+      } else {
+        const def = TILE_TYPES[data.type];
+        if (def && def.image) {
+          tileDiv.style.backgroundImage = `url('${def.image}')`;
+        } else {
+          tileDiv.classList.add("tile-empty");
+        }
+      }
 
-    div.innerHTML = `
-      <div>${cardData[key].biome}</div>
-      <div style="font-size:1.6vh;opacity:0.6;">x${game.player.inventory[key]}</div>
-    `;
+      if (x === playerX && y === playerY) {
+        tileDiv.classList.add("tile-player");
+      }
 
-    div.addEventListener("click", () => {
-      if (selectedCard === key) selectedCard = null;
-      else selectedCard = key;
-      refreshAll();
-    });
-
-    cardsDiv.appendChild(div);
-  }
-}
-
-/* ====================================================================
-   TILE CLICK LOGIC
-==================================================================== */
-
-function onTileClick(x, y) {
-  const tile = game.world[y][x];
-  const px = game.player.currentTile.x;
-  const py = game.player.currentTile.y;
-
-  const dx = Math.abs(x - px);
-  const dy = Math.abs(y - py);
-  const adjacent = (dx + dy === 1);
-
-  // If tile is empty and player selected a card → place biome
-  if (tile.biome === "empty" && selectedCard && adjacent) {
-    const card = selectedCard;
-
-    const biome = cardData[card].biome;
-    const rarity = rollRarity();
-
-    game.world[y][x] = {
-      biome,
-      rarity,
-      events: [],
-      discovered: true
-    };
-
-    game.player.inventory[card]--;
-    if (game.player.inventory[card] <= 0) delete game.player.inventory[card];
-
-    selectedCard = null;
-    saveGame(game);
-    refreshAll();
-    return;
-  }
-
-  // Otherwise, entering tile
-  if (tile.biome !== "empty") {
-    game.player.currentTile = { x, y };
-    saveGame(game);
-    window.location.href = "innerworld.html";
-  }
-}
-
-/* ====================================================================
-   HELPER
-==================================================================== */
-
-function refreshAll() {
-  refreshBanner();
-  renderGrid();
-  renderCards();
-
-  // highlight adjacent tiles when card selected
-  if (selectedCard) {
-    const px = game.player.currentTile.x;
-    const py = game.player.currentTile.y;
-
-    const tiles = gridDiv.children;
-
-    for (let i = 0; i < tiles.length; i++) {
-      const x = i % 5;
-      const y = Math.floor(i / 5);
-
-      const dx = Math.abs(x - px);
-      const dy = Math.abs(y - py);
-
-      if (dx + dy === 1) {
-        tiles[i].classList.add("highlight");
+      if (playable.includes(`${x},${y}`)) {
+        tileDiv.classList.add("tile-highlight-playable");
       }
     }
   }
 }
 
-refreshAll();
-</script>
+// =====================================================
+// BANNER + ENTER BUTTON
+// =====================================================
+function updateBanner() {
+  const tile = getTile(playerX, playerY);
+  let label = "Empty";
+  if (tile && TILE_TYPES[tile.type]) {
+    label = TILE_TYPES[tile.type].label;
+  } else if (tile && !TILE_TYPES[tile.type]) {
+    label = tile.type;
+  }
+  bannerTileNameEl.textContent = label;
+  bannerCoordTextEl.textContent = `${playerX + 1}, ${playerY + 1}`;
+}
 
+function updateEnterButton() {
+  const tile = getTile(playerX, playerY);
+  if (!tile) {
+    enterButtonEl.style.display = "none";
+    return;
+  }
+  const def = TILE_TYPES[tile.type];
+  const label = def ? def.label : tile.type;
+  enterButtonEl.textContent = `ENTER ${label.toUpperCase()}`;
+  enterButtonEl.style.display = "inline-block";
+}
+
+// Go into innerworld
+enterButtonEl.addEventListener("click", () => {
+  saveGame();
+  window.location.href = "innerworld.html";
+});
+
+// =====================================================
+// CARDS
+// =====================================================
+let cardElements = [];
+
+function initCardsDOM() {
+  // Remove existing card elements (except title)
+  const children = Array.from(cardRowEl.children).slice(1);
+  children.forEach(c => cardRowEl.removeChild(c));
+  cardElements = [];
+
+  for (const card of cards) {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.dataset.type = card.type;
+
+    const img = document.createElement("img");
+    img.src = card.image;
+    img.alt = card.label;
+
+    const countDiv = document.createElement("div");
+    countDiv.className = "card-count";
+
+    div.appendChild(img);
+    div.appendChild(countDiv);
+    div.addEventListener("click", onCardClick);
+
+    cardRowEl.appendChild(div);
+    cardElements.push({ type: card.type, el: div, countEl: countDiv });
+  }
+}
+
+function renderCards() {
+  for (const entry of cardElements) {
+    const cardData = getCardByType(entry.type);
+    const hasAny = cardData && cardData.count > 0;
+    const isSelected = (selectedCardType === entry.type);
+
+    entry.countEl.textContent = cardData ? `x${cardData.count}` : "x0";
+    entry.el.classList.toggle("card-disabled", !hasAny);
+    entry.el.classList.toggle("card-selected", isSelected);
+  }
+}
+
+function onCardClick(e) {
+  const type = e.currentTarget.dataset.type;
+  const card = getCardByType(type);
+  if (!card || card.count <= 0) return;
+
+  selectedCardType = (selectedCardType === type) ? null : type;
+
+  renderCards();
+  renderGrid();
+  saveGame();
+}
+
+// =====================================================
+// TILE CLICK
+// =====================================================
+function onTileClick(e) {
+  const x = parseInt(e.currentTarget.dataset.x, 10);
+  const y = parseInt(e.currentTarget.dataset.y, 10);
+  const tile = getTile(x, y);
+
+  // If a card is selected, try to place it
+  if (selectedCardType) {
+    const playable = getPlayableTilesForCard(selectedCardType).map(c => `${c.x},${c.y}`);
+    const key = `${x},${y}`;
+
+    if (playable.includes(key)) {
+      const card = getCardByType(selectedCardType);
+      if (card && card.count > 0) {
+        setTile(x, y, selectedCardType);
+        card.count--;
+
+        if (card.count <= 0) {
+          selectedCardType = null;
+        }
+
+        renderCards();
+        renderGrid();
+        updateBanner();
+        updateEnterButton();
+        saveGame();
+      }
+    }
+    return;
+  }
+
+  // No card selected: move if adjacent & not empty
+  if (isAdjacentToPlayer(x, y) && tile !== null) {
+    playerX = x;
+    playerY = y;
+    renderGrid();
+    updateBanner();
+    updateEnterButton();
+    saveGame();
+  }
+}
+
+// =====================================================
+// INIT UI AFTER STATE EXISTS
+// =====================================================
+function initUI() {
+  initGridDOM();
+  initCardsDOM();
+  renderGrid();
+  renderCards();
+  updateBanner();
+  updateEnterButton();
+}
+
+// =====================================================
+// BOOTSTRAP: CHECK FOR EXISTING SAVE OR SHOW NEW GAME
+// =====================================================
+(function bootstrap() {
+  const hasSave = loadGame();
+
+  if (!hasSave) {
+    // No save yet → show new game screen
+    outerRoot.style.display = "none";
+    newGameScreen.style.display = "flex";
+
+    newGameButton.addEventListener("click", () => {
+      createFreshState();
+      saveGame();
+      newGameScreen.style.display = "none";
+      outerRoot.style.display = "flex";
+      initUI();
+    });
+  } else {
+    // Save exists → normal start
+    newGameScreen.style.display = "none";
+    outerRoot.style.display = "flex";
+    initUI();
+  }
+})();
+</script>
 </body>
 </html>
