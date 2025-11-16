@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Outerworld</title>
+
+<style>
+  html, body {
+    margin: 0; padding: 0;
+    width: 100vw; height: 100vh;
+    overflow: hidden;
+    background: #222;
+    font-family: sans-serif;
+    color: white;
+    touch-action: none;
+  }
+
+  /* Banner */
+  #banner {
+    width: 100%;
+    height: 8vh;
+    background: #333;
+    border-bottom: 3px solid #555;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2vw;
+    box-sizing: border-box;
+    font-size: 2.4vh;
+  }
+
+  /* Grid container */
+  #gridArea {
+    width: 100%;
+    height: 62vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* 5x5 grid */
+  #grid {
+    width: 80vw;
+    height: 80vw;
+    max-height: 62vh;
+    max-width: 62vh;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    gap: 4px;
+  }
+
+  .tile {
+    background: #111;
+    border: 3px solid #444;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2vh;
+    cursor: pointer;
+  }
+
+  /* Card bar */
+  #cardBar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 30vh;
+    background: #111;
+    border-top: 3px solid #555;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+  }
+
+  #cardBarTitle {
+    padding: 1vh;
+    text-align: center;
+    font-size: 2.4vh;
+    border-bottom: 2px solid #333;
+  }
+
+  #cards {
+    flex: 1;
+    display: flex;
+    overflow-x: auto;
+    gap: 2vw;
+    align-items: center;
+    padding: 2vw;
+  }
+
+  .card {
+    width: 18vw;
+    height: 24vw;
+    background: #222;
+    border: 3px solid #888;
+    border-radius: 1vh;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 2vh;
+    cursor: pointer;
+  }
+
+  .card.selected {
+    border-color: #fff;
+    transform: scale(1.12);
+  }
+
+  /* Tile rarity borders */
+  .rarity-common   { border-color: #8a5a37 !important; }
+  .rarity-uncommon { border-color: #c0c0c0 !important; }
+  .rarity-rare     { border-color: #ffd700 !important; }
+  .rarity-special  { border-color: #00c8b4 !important; }
+
+  .highlight {
+    outline: 4px solid rgba(255,255,0,0.7);
+  }
+</style>
+</head>
+<body>
+
+<!-- Banner -->
+<div id="banner">
+  <div id="bannerLeft">Day 1</div>
+  <div id="bannerRight">Tile: —</div>
+</div>
+
+<!-- Main grid -->
+<div id="gridArea">
+  <div id="grid"></div>
+</div>
+
+<!-- Card bar -->
+<div id="cardBar">
+  <div id="cardBarTitle">Your Cards</div>
+  <div id="cards"></div>
+</div>
+
+<script>
+/* ============================================================
+   SAVE SYSTEM
+============================================================ */
+
+const SAVE_KEY = "myGameSave";
+
+const defaultSave = {
+  day: 1,
+  player: {
+    currentTile: { x: 2, y: 2 },
+    inventory: {
+      card_plains: 2,
+      card_forest: 2,
+      card_hills: 1
+    }
+  },
+  world: [] // 5×5 grid
+};
+
+function loadGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return structuredClone(defaultSave);
+    return { ...defaultSave, ...JSON.parse(raw) };
+  } catch {
+    return structuredClone(defaultSave);
+  }
+}
+
+function saveGame(game) {
+  localStorage.setItem(SAVE_KEY, JSON.stringify(game));
+}
+
+let game = loadGame();
+
+// Init world grid if missing
+if (!game.world || game.world.length === 0) {
+  game.world = [];
+  for (let y = 0; y < 5; y++) {
+    let row = [];
+    for (let x = 0; x < 5; x++) {
+      row.push({
+        biome: (x===2 && y===2) ? "Home" : "empty",
+        rarity: (x===2 && y===2) ? "special" : null,
+        events: [],
+        discovered: (x===2 && y===2)
+      });
+    }
+    game.world.push(row);
+  }
+  saveGame(game);
+}
+
+/* ====================================================================
+   BIOME CARD DEFINITIONS
+==================================================================== */
+const cardData = {
+  card_plains:  { biome: "Plains" },
+  card_forest:  { biome: "Forest" },
+  card_hills:   { biome: "Hills" }
+};
+
+const rarityWeights = {
+  common:   0.70,
+  uncommon: 0.22,
+  rare:     0.08
+};
+
+function rollRarity() {
+  const r = Math.random();
+  if (r < rarityWeights.common) return "common";
+  if (r < rarityWeights.common + rarityWeights.uncommon) return "uncommon";
+  return "rare";
+}
+
+/* ====================================================================
+   UI + GRID RENDER
+==================================================================== */
+
+const gridDiv = document.getElementById("grid");
+const cardsDiv = document.getElementById("cards");
+const bannerLeft = document.getElementById("bannerLeft");
+const bannerRight = document.getElementById("bannerRight");
+
+let selectedCard = null;
+
+function refreshBanner() {
+  bannerLeft.textContent = `Day ${game.day}`;
+
+  const { x, y } = game.player.currentTile;
+  const t = game.world[y][x];
+
+  bannerRight.textContent = `Tile: ${t.biome} (${t.rarity || "-"})`;
+}
+
+function createTileElement(x, y, tile) {
+  const div = document.createElement("div");
+  div.className = "tile";
+
+  // Color border by rarity
+  if (tile.rarity) {
+    div.classList.add("rarity-" + tile.rarity);
+  }
+
+  div.textContent = tile.biome === "empty" ? "" : tile.biome[0];
+
+  div.addEventListener("click", () => onTileClick(x, y));
+
+  return div;
+}
+
+function renderGrid() {
+  gridDiv.innerHTML = "";
+  for (let y = 0; y < 5; y++) {
+    for (let x = 0; x < 5; x++) {
+      const tile = game.world[y][x];
+      const el = createTileElement(x, y, tile);
+      gridDiv.appendChild(el);
+    }
+  }
+}
+
+function renderCards() {
+  cardsDiv.innerHTML = "";
+
+  for (let key in game.player.inventory) {
+    if (game.player.inventory[key] <= 0) continue;
+
+    const div = document.createElement("div");
+    div.className = "card";
+    if (selectedCard === key) div.classList.add("selected");
+
+    div.innerHTML = `
+      <div>${cardData[key].biome}</div>
+      <div style="font-size:1.6vh;opacity:0.6;">x${game.player.inventory[key]}</div>
+    `;
+
+    div.addEventListener("click", () => {
+      if (selectedCard === key) selectedCard = null;
+      else selectedCard = key;
+      refreshAll();
+    });
+
+    cardsDiv.appendChild(div);
+  }
+}
+
+/* ====================================================================
+   TILE CLICK LOGIC
+==================================================================== */
+
+function onTileClick(x, y) {
+  const tile = game.world[y][x];
+  const px = game.player.currentTile.x;
+  const py = game.player.currentTile.y;
+
+  const dx = Math.abs(x - px);
+  const dy = Math.abs(y - py);
+  const adjacent = (dx + dy === 1);
+
+  // If tile is empty and player selected a card → place biome
+  if (tile.biome === "empty" && selectedCard && adjacent) {
+    const card = selectedCard;
+
+    const biome = cardData[card].biome;
+    const rarity = rollRarity();
+
+    game.world[y][x] = {
+      biome,
+      rarity,
+      events: [],
+      discovered: true
+    };
+
+    game.player.inventory[card]--;
+    if (game.player.inventory[card] <= 0) delete game.player.inventory[card];
+
+    selectedCard = null;
+    saveGame(game);
+    refreshAll();
+    return;
+  }
+
+  // Otherwise, entering tile
+  if (tile.biome !== "empty") {
+    game.player.currentTile = { x, y };
+    saveGame(game);
+    window.location.href = "innerworld.html";
+  }
+}
+
+/* ====================================================================
+   HELPER
+==================================================================== */
+
+function refreshAll() {
+  refreshBanner();
+  renderGrid();
+  renderCards();
+
+  // highlight adjacent tiles when card selected
+  if (selectedCard) {
+    const px = game.player.currentTile.x;
+    const py = game.player.currentTile.y;
+
+    const tiles = gridDiv.children;
+
+    for (let i = 0; i < tiles.length; i++) {
+      const x = i % 5;
+      const y = Math.floor(i / 5);
+
+      const dx = Math.abs(x - px);
+      const dy = Math.abs(y - py);
+
+      if (dx + dy === 1) {
+        tiles[i].classList.add("highlight");
+      }
+    }
+  }
+}
+
+refreshAll();
+</script>
+
+</body>
+</html>
