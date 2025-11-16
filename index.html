@@ -183,21 +183,15 @@
       0 0 22px rgba(37,99,235,0.95);
   }
 
-  /* ===== BOTTOM UI ===== */
+  /* ===== BOTTOM UI (ENTER ONLY) ===== */
   #bottomUI {
     flex: 0 0 auto;
     background: linear-gradient(to top, #020617, #020617f0);
     border-top: 1px solid rgba(148,163,184,0.4);
     padding: 6px 10px 8px;
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  #enterRow {
-    display: flex;
     justify-content: center;
-    margin-bottom: 2px;
+    align-items: center;
   }
 
   #enterButton {
@@ -214,29 +208,84 @@
     cursor: pointer;
   }
 
-  /* Cards */
-  #cardRow {
+  /* ===== FLOATING CARD BUTTON ===== */
+  #cardToggleButton {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.8);
+    background: radial-gradient(circle at top, #1e293b, #020617);
+    box-shadow: 0 8px 20px rgba(15,23,42,0.9);
+    color: #e5e7eb;
+    font-size: 20px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    overflow-x: auto;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 4000;
   }
 
-  #cardRowTitle {
-    font-size: 11px;
-    color: #9ca3af;
+  /* ===== CARD OVERLAY DRAWER ===== */
+  #cardOverlay {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 45vh;
+    background: radial-gradient(circle at top, #020617, #020617);
+    border-top: 1px solid rgba(148,163,184,0.7);
+    box-shadow: 0 -12px 30px rgba(15,23,42,0.9);
+    display: none;
+    flex-direction: column;
+    padding: 8px 10px 10px;
+    gap: 8px;
+    z-index: 3000;
+  }
+
+  #cardOverlayHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  #cardOverlayTitle {
+    font-size: 12px;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-right: 4px;
-    white-space: nowrap;
+    letter-spacing: 0.1em;
+    color: #9ca3af;
+  }
+
+  #cardOverlayClose {
+    border: none;
+    border-radius: 999px;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15,23,42,0.9);
+    color: #e5e7eb;
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  #cardOverlayCards {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-top: 2px;
   }
 
   .card {
     position: relative;
     flex: 0 0 auto;
-    width: 60px;
-    height: 84px;
-    border-radius: 8px;
+    width: 64px;
+    height: 90px;
+    border-radius: 10px;
     background: radial-gradient(circle at top, #0f172a, #020617);
     border: 1px solid rgba(148,163,184,0.7);
     box-shadow: 0 8px 16px rgba(15,23,42,0.9);
@@ -250,7 +299,8 @@
       transform 0.12s ease,
       box-shadow 0.12s ease,
       border-color 0.12s ease,
-      background 0.12s ease;
+      background 0.12s ease,
+      opacity 0.12s ease;
   }
 
   .card img {
@@ -259,13 +309,8 @@
     object-fit: cover;
   }
 
-  .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(15,23,42,0.9);
-  }
-
   .card-selected {
-    transform: translateY(-6px) scale(1.08);
+    transform: translateY(-4px) scale(1.06);
     border-color: rgba(250,204,21,1);
     box-shadow:
       0 0 0 2px rgba(250,204,21,0.75),
@@ -320,16 +365,23 @@
     </div>
   </div>
 
-  <!-- BOTTOM UI -->
+  <!-- BOTTOM UI: ENTER ONLY -->
   <div id="bottomUI">
-    <div id="enterRow">
-      <button id="enterButton">ENTER</button>
-    </div>
+    <button id="enterButton">ENTER</button>
+  </div>
+</div>
 
-    <div id="cardRow">
-      <div id="cardRowTitle">Cards</div>
-      <!-- Cards injected here -->
-    </div>
+<!-- FLOATING CARD BUTTON -->
+<button id="cardToggleButton" title="Show cards">🃏</button>
+
+<!-- CARD OVERLAY DRAWER -->
+<div id="cardOverlay">
+  <div id="cardOverlayHeader">
+    <div id="cardOverlayTitle">Cards</div>
+    <button id="cardOverlayClose">✕</button>
+  </div>
+  <div id="cardOverlayCards">
+    <!-- cards injected here -->
   </div>
 </div>
 
@@ -360,7 +412,9 @@ let world;
 let playerX;
 let playerY;
 let cards;
-let selectedCardType = null;
+let selectedCardType = null; // for tap-twice inside overlay
+let pendingTile = null;      // {x,y} tile we want to play on
+let cardMenuOpen = false;
 
 // Create a fresh game state
 function createFreshState() {
@@ -380,11 +434,10 @@ function loadGame() {
     const data = JSON.parse(raw);
     if (!data.world || !data.player) return false;
 
-    world = data.world;
+    world   = data.world;
     playerX = data.player.x;
     playerY = data.player.y;
-
-    cards = data.cards && Array.isArray(data.cards)
+    cards   = data.cards && Array.isArray(data.cards)
       ? data.cards
       : DEFAULT_CARDS.map(c => ({ ...c }));
 
@@ -408,14 +461,19 @@ function saveGame() {
 // =====================================================
 // DOM REFS
 // =====================================================
-const newGameScreen = document.getElementById("newGameScreen");
-const newGameButton = document.getElementById("newGameButton");
-const outerRoot     = document.getElementById("outerRoot");
-const gridEl        = document.getElementById("grid");
+const newGameScreen   = document.getElementById("newGameScreen");
+const newGameButton   = document.getElementById("newGameButton");
+const outerRoot       = document.getElementById("outerRoot");
+const gridEl          = document.getElementById("grid");
 const bannerTileNameEl  = document.getElementById("banner-tileName");
 const bannerCoordTextEl = document.getElementById("banner-coordText");
-const enterButtonEl = document.getElementById("enterButton");
-const cardRowEl     = document.getElementById("cardRow");
+const enterButtonEl     = document.getElementById("enterButton");
+
+const cardToggleButtonEl = document.getElementById("cardToggleButton");
+const cardOverlayEl        = document.getElementById("cardOverlay");
+const cardOverlayTitleEl   = document.getElementById("cardOverlayTitle");
+const cardOverlayCardsEl   = document.getElementById("cardOverlayCards");
+const cardOverlayCloseEl   = document.getElementById("cardOverlayClose");
 
 // =====================================================
 // WORLD HELPERS
@@ -449,24 +507,8 @@ function cardAvailable(type) {
   return c && c.count > 0;
 }
 
-function getPlayableTilesForCard(type) {
-  if (!cardAvailable(type)) return [];
-  const coords = [];
-  const dirs = [
-    { dx: 1, dy: 0 },
-    { dx: -1, dy: 0 },
-    { dx: 0, dy: 1 },
-    { dx: 0, dy: -1 }
-  ];
-
-  for (const {dx, dy} of dirs) {
-    const nx = playerX + dx;
-    const ny = playerY + dy;
-    if (!inBounds(nx, ny)) continue;
-    if (world[ny][nx] === null) coords.push({ x: nx, y: ny });
-  }
-
-  return coords;
+function canPlayAnyCard() {
+  return cards.some(c => c.count > 0);
 }
 
 // =====================================================
@@ -493,9 +535,7 @@ function initGridDOM() {
 }
 
 function renderGrid() {
-  const playable = selectedCardType
-    ? getPlayableTilesForCard(selectedCardType).map(c => `${c.x},${c.y}`)
-    : [];
+  const anyCards = canPlayAnyCard();
 
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
@@ -509,15 +549,20 @@ function renderGrid() {
         tileDiv.classList.add("tile-empty");
       } else {
         const def = TILE_TYPES[data.type];
-        if (def && def.image) tileDiv.style.backgroundImage = `url('${def.image}')`;
-        else tileDiv.classList.add("tile-empty");
+        if (def && def.image) {
+          tileDiv.style.backgroundImage = `url('${def.image}')`;
+        } else {
+          tileDiv.classList.add("tile-empty");
+        }
       }
 
       if (x === playerX && y === playerY) {
         tileDiv.classList.add("tile-player");
       }
 
-      if (playable.includes(`${x},${y}`)) {
+      // Auto-highlight valid build tiles:
+      // empty + adjacent + have at least one card.
+      if (anyCards && data === null && isAdjacentToPlayer(x, y)) {
         tileDiv.classList.add("tile-highlight-playable");
       }
     }
@@ -529,10 +574,12 @@ function renderGrid() {
 // =====================================================
 function updateBanner() {
   const tile = getTile(playerX, playerY);
-  const label = tile && TILE_TYPES[tile.type]
-    ? TILE_TYPES[tile.type].label
-    : tile ? tile.type : "Empty";
-
+  let label = "Empty";
+  if (tile && TILE_TYPES[tile.type]) {
+    label = TILE_TYPES[tile.type].label;
+  } else if (tile && !TILE_TYPES[tile.type]) {
+    label = tile.type;
+  }
   bannerTileNameEl.textContent = label;
   bannerCoordTextEl.textContent = `${playerX + 1}, ${playerY + 1}`;
 }
@@ -549,14 +596,12 @@ function updateEnterButton() {
   enterButtonEl.style.display = "inline-block";
 }
 
-// =====================================================
-// ENTER INNERWORLD — FIXED & FINAL
-// =====================================================
+// Go into innerworld
 enterButtonEl.addEventListener("click", () => {
   const tile = getTile(playerX, playerY);
   if (!tile) return;
 
-  // Save innerworld entry data
+  // Save info for innerworld
   localStorage.setItem("innerworld_entry", JSON.stringify({
     tile: {
       type: tile.type,
@@ -573,13 +618,12 @@ enterButtonEl.addEventListener("click", () => {
 });
 
 // =====================================================
-// CARDS
+// CARD OVERLAY (DRAWER)
 // =====================================================
 let cardElements = [];
 
 function initCardsDOM() {
-  const children = Array.from(cardRowEl.children).slice(1);
-  children.forEach(c => cardRowEl.removeChild(c));
+  cardOverlayCardsEl.innerHTML = "";
   cardElements = [];
 
   for (const card of cards) {
@@ -589,41 +633,115 @@ function initCardsDOM() {
 
     const img = document.createElement("img");
     img.src = card.image;
+    img.alt = card.label;
 
     const countDiv = document.createElement("div");
     countDiv.className = "card-count";
 
     div.appendChild(img);
     div.appendChild(countDiv);
-    div.addEventListener("click", onCardClick);
+    div.addEventListener("click", onOverlayCardClick);
 
-    cardRowEl.appendChild(div);
+    cardOverlayCardsEl.appendChild(div);
     cardElements.push({ type: card.type, el: div, countEl: countDiv });
   }
+
+  renderCards();
 }
 
 function renderCards() {
   for (const entry of cardElements) {
     const cardData = getCardByType(entry.type);
     const hasAny = cardData && cardData.count > 0;
-    const isSelected = selectedCardType === entry.type;
+    const isSelected = (selectedCardType === entry.type);
 
     entry.countEl.textContent = cardData ? `x${cardData.count}` : "x0";
     entry.el.classList.toggle("card-disabled", !hasAny);
-    entry.el.classList.toggle("card-selected", isSelected);
+    entry.el.classList.toggle("card-selected", hasAny && isSelected);
   }
 }
 
-function onCardClick(e) {
+function openCardOverlay(reason) {
+  cardMenuOpen = true;
+  cardOverlayEl.style.display = "flex";
+
+  if (reason === "tile" && pendingTile) {
+    cardOverlayTitleEl.textContent =
+      `Select a card for (${pendingTile.x + 1}, ${pendingTile.y + 1})`;
+  } else {
+    cardOverlayTitleEl.textContent = "Cards";
+    pendingTile = null;
+    selectedCardType = null;
+  }
+
+  renderCards();
+}
+
+function closeCardOverlay() {
+  cardMenuOpen = false;
+  cardOverlayEl.style.display = "none";
+  pendingTile = null;
+  selectedCardType = null;
+  renderCards();
+}
+
+// Floating button: just browse cards (no pending tile)
+cardToggleButtonEl.addEventListener("click", () => {
+  if (cardMenuOpen) {
+    closeCardOverlay();
+  } else {
+    openCardOverlay("manual");
+  }
+});
+
+cardOverlayCloseEl.addEventListener("click", () => {
+  closeCardOverlay();
+});
+
+// Overlay card click: tap once to select, twice to confirm (if pendingTile)
+function onOverlayCardClick(e) {
   const type = e.currentTarget.dataset.type;
   const card = getCardByType(type);
   if (!card || card.count <= 0) return;
 
-  selectedCardType = (selectedCardType === type) ? null : type;
+  // If we already selected this card and have a pending tile → confirm play
+  if (pendingTile && selectedCardType === type) {
+    placeCardOnPendingTile(type);
+    return;
+  }
 
+  // Otherwise just select this card visually
+  selectedCardType = type;
   renderCards();
-  renderGrid();
+}
+
+function placeCardOnPendingTile(type) {
+  if (!pendingTile) return;
+
+  const { x, y } = pendingTile;
+
+  // Safety: ensure tile is still valid
+  if (!isAdjacentToPlayer(x, y)) return;
+  if (getTile(x, y) !== null) return;
+
+  const card = getCardByType(type);
+  if (!card || card.count <= 0) return;
+
+  // Play card
+  setTile(x, y, type);
+  card.count--;
+
+  if (card.count <= 0) {
+    selectedCardType = null;
+  }
+
+  pendingTile = null;
   saveGame();
+  renderGrid();
+  renderCards();
+  updateBanner();
+  updateEnterButton();
+  closeCardOverlay();
 }
 
 // =====================================================
@@ -634,38 +752,33 @@ function onTileClick(e) {
   const y = parseInt(e.currentTarget.dataset.y, 10);
   const tile = getTile(x, y);
 
-  if (selectedCardType) {
-    const playable = getPlayableTilesForCard(selectedCardType)
-      .map(c => `${c.x},${c.y}`);
-    const key = `${x},${y}`;
+  const adjacent = isAdjacentToPlayer(x, y);
 
-    if (playable.includes(key)) {
-      const card = getCardByType(selectedCardType);
-      if (card && card.count > 0) {
-        setTile(x, y, selectedCardType);
-        card.count--;
-
-        if (card.count <= 0) selectedCardType = null;
-
-        renderCards();
-        renderGrid();
-        updateBanner();
-        updateEnterButton();
-        saveGame();
-      }
-    }
+  // Case 1: empty, adjacent, and we have cards → choose card for this tile
+  if (tile === null && adjacent && canPlayAnyCard()) {
+    pendingTile = { x, y };
+    selectedCardType = null;
+    openCardOverlay("tile");
     return;
   }
 
-  // Move player
-  if (isAdjacentToPlayer(x, y) && tile !== null) {
+  // Case 2: move player (adjacent & not empty)
+  if (tile !== null && adjacent) {
     playerX = x;
     playerY = y;
-
+    pendingTile = null;
+    selectedCardType = null;
+    closeCardOverlay();
     renderGrid();
     updateBanner();
     updateEnterButton();
     saveGame();
+    return;
+  }
+
+  // Case 3: click elsewhere — just close overlay if open
+  if (cardMenuOpen) {
+    closeCardOverlay();
   }
 }
 
@@ -682,12 +795,13 @@ function initUI() {
 }
 
 // =====================================================
-// BOOTSTRAP
+// BOOTSTRAP: CHECK FOR EXISTING SAVE OR SHOW NEW GAME
 // =====================================================
 (function bootstrap() {
   const hasSave = loadGame();
 
   if (!hasSave) {
+    // No save yet → show new game screen
     outerRoot.style.display = "none";
     newGameScreen.style.display = "flex";
 
@@ -699,6 +813,7 @@ function initUI() {
       initUI();
     });
   } else {
+    // Save exists → normal start
     newGameScreen.style.display = "none";
     outerRoot.style.display = "flex";
     initUI();
