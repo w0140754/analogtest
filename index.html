@@ -61,12 +61,13 @@
     text-transform: uppercase;
   }
 
+  /* RARITY COLORS FOR TEXT */
   .rarity-common   { color: #b87333; }  /* copper */
   .rarity-uncommon { color: #c0c0c0; }  /* silver */
   .rarity-rare     { color: #e8a317; }  /* orangey gold */
 
   /* ==========================
-     MESSAGE BANNER
+     MESSAGE BANNER (ALWAYS VISIBLE)
      ========================== */
   #messageBanner {
     flex: 0 0 auto;
@@ -76,8 +77,9 @@
     font-size: 14px;
     background: rgba(15,23,42,0.75);
     border-bottom: 1px solid rgba(148,163,184,0.25);
-    display: none;
-    opacity: 0;
+    display: block;      /* always visible */
+    opacity: 0;          /* but text fades in/out */
+    min-height: 20px;
     transition: opacity 0.35s ease;
   }
 
@@ -200,9 +202,15 @@
     display: inline-block;
   }
 
+  /* ==========================
+     CARDS – VISUAL BOOST + ANIMATION
+     ========================== */
   .card {
     display: inline-block;
-    background: radial-gradient(circle at top, #0f172a, #020617);
+    /* visual boost: layered gradient */
+    background:
+      radial-gradient(circle at top, rgba(255,255,255,0.06), rgba(0,0,0,0.4)),
+      #0f172a;
     border: 1px solid rgba(148,163,184,0.6);
     border-radius: 10px;
     overflow: hidden;
@@ -210,17 +218,32 @@
     margin-right: 10px;
     vertical-align: top;
     cursor: pointer;
+
+    /* smooth animations */
+    transition:
+      transform 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
   }
 
+  /* dynamic size is set via JS; these are just baseline fallback */
   .card img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
 
+  .card:active {
+    transform: scale(0.95);
+    box-shadow: 0 0 12px rgba(250,204,21,0.4);
+  }
+
   .card-selected {
-    border-color: rgba(250,204,21,1);
-    transform: translateY(-3px) scale(1.05);
+    transform: translateY(-5px) scale(1.08);
+    border-width: 2px;
+    box-shadow:
+      0 0 12px rgba(250,204,21,0.7),
+      0 0 20px rgba(250,204,21,0.4);
   }
 
   .card-disabled {
@@ -236,6 +259,17 @@
     padding: 2px 5px;
     border-radius: 8px;
     font-size: 10px;
+  }
+
+  /* RARITY-COLORED BORDERS ON CARDS */
+  .card.rarity-common {
+    border-color: #b87333 !important;  /* copper */
+  }
+  .card.rarity-uncommon {
+    border-color: #c0c0c0 !important;  /* silver */
+  }
+  .card.rarity-rare {
+    border-color: #e8a317 !important;  /* gold-ish */
   }
 </style>
 </head>
@@ -254,7 +288,7 @@
     <button id="enterButtonTop">Explore</button>
   </div>
 
-  <!-- MESSAGE BANNER -->
+  <!-- MESSAGE BANNER (ALWAYS SHOWN, TEXT FADES) -->
   <div id="messageBanner"></div>
 
   <!-- GRID -->
@@ -416,16 +450,11 @@ function showMessageBanner(rarity, biome) {
       `Discovered <span class="rarity-${rarity}">${rarityCap}</span> ${biome}!`;
   }
 
-  messageBannerEl.style.display = "block";
-  requestAnimationFrame(() => {
-    messageBannerEl.style.opacity = "1";
-  });
+  // Banner always visible; just fade opacity
+  messageBannerEl.style.opacity = "1";
 
   setTimeout(() => {
     messageBannerEl.style.opacity = "0";
-    setTimeout(() => {
-      messageBannerEl.style.display = "none";
-    }, 300);
   }, 1800);
 }
 
@@ -612,6 +641,10 @@ function renderCardDrawer() {
     const div = document.createElement("div");
     div.className = "card";
     div.dataset.type = card.type;
+
+    // Apply rarity class to card border (defaults to common)
+    const rarity = card.rarity || "common";
+    div.classList.add(`rarity-${rarity}`);
 
     const img = document.createElement("img");
     img.src = card.image;
