@@ -22,68 +22,25 @@
     flex-direction: column;
   }
 
-  /* =========================
-     NEW GAME SCREEN
-  ========================== */
-  #newGameScreen {
-    position: fixed;
-    inset: 0;
-    background: #020617;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 16px;
-    z-index: 20000;
-  }
-
-  #newGameTitle {
-    font-size: 18px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #e5e7eb;
-  }
-
-  #newGameButton {
-    padding: 10px 22px;
-    font-size: 16px;
-    border-radius: 999px;
-    border: 1px solid rgba(249,250,251,0.9);
-    background: linear-gradient(to right, #22c55e, #4ade80);
-    color: #022c22;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 8px 18px rgba(34,197,94,0.6);
-  }
-
-  /* =========================
-     MAIN LAYOUT
-  ========================== */
-  #outerRoot {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-  }
-
-  /* =========================
-     TOP TOOLBAR
-  ========================== */
+  /* ======================================
+     TOP TOOLBAR (CENTERED EXPLORE)
+     ====================================== */
   #banner {
     flex: 0 0 auto;
     padding: 10px 14px;
     background: linear-gradient(to right, #111827, #020617);
     border-bottom: 1px solid rgba(148,163,184,0.3);
-    font-size: 14px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    justify-content: center;
+    position: relative;
   }
 
   #banner-left {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
   }
 
   #banner-sub {
@@ -91,30 +48,6 @@
     color: #cbd5e1;
   }
 
-  /* =========================
-     MESSAGE BANNER
-  ========================== */
-  #messageBanner {
-    flex: 0 0 auto;
-    width: 100%;
-    text-align: center;
-    padding: 6px 0;
-    font-size: 14px;
-    letter-spacing: 0.03em;
-    background: rgba(15,23,42,0.75);
-    border-bottom: 1px solid rgba(148,163,184,0.25);
-    display: none;
-    opacity: 0;
-    transition: opacity 0.35s ease;
-  }
-
-  .rarity-common { color: #b87333; }
-  .rarity-uncommon { color: #c0c0c0; }
-  .rarity-rare { color: #e8a317; }
-
-  /* =========================
-     EXPLORE BUTTON
-  ========================== */
   #enterButtonTop {
     padding: 6px 18px;
     font-size: 13px;
@@ -123,31 +56,51 @@
     background: linear-gradient(to right, #22c55e, #4ade80);
     color: #022c22;
     font-weight: 600;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
     cursor: pointer;
     display: none;
+    text-transform: uppercase;
   }
 
-  /* =========================
-     GRID – NOW ANCHORED TO TOP
-  ========================== */
+  /* ======================================
+     RARITY COLORS
+     ====================================== */
+  .rarity-common { color: #b87333; }
+  .rarity-uncommon { color: #c0c0c0; }
+  .rarity-rare { color: #e8a317; }
+
+  /* ======================================
+     MESSAGE BANNER
+     ====================================== */
+  #messageBanner {
+    flex: 0 0 auto;
+    width: 100%;
+    text-align: center;
+    padding: 6px 0;
+    font-size: 14px;
+    background: rgba(15,23,42,0.75);
+    border-bottom: 1px solid rgba(148,163,184,0.25);
+    display: none;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+
+  /* ======================================
+     GRID (TOP-ANCHORED)
+     ====================================== */
   #gridWrapper {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     display: flex;
     justify-content: center;
-    align-items: flex-start; /* <— moved from center to top */
+    align-items: flex-start;
     padding-top: 10px;
   }
 
   #gridSquare {
-    position: relative;
     width: min(98vw, 98vh);
     max-width: 720px;
     aspect-ratio: 1 / 1;
     background: radial-gradient(circle at top, #1e293b, #020617);
     border-radius: 16px;
-    box-shadow: 0 18px 40px rgba(15,23,42,0.9);
     padding: 4px;
     box-sizing: border-box;
     display: flex;
@@ -163,14 +116,12 @@
   }
 
   .tile {
-    position: relative;
     border-radius: 8px;
     overflow: hidden;
     background-color: #020617;
     background-size: cover;
     background-position: center;
     cursor: pointer;
-    box-shadow: inset 0 0 0 1px rgba(15,23,42,0.9);
   }
 
   .tile-highlight-playable {
@@ -185,15 +136,13 @@
     background-image: url("overworld_player_idle.png");
     background-size: contain;
     background-repeat: no-repeat;
-    background-position: center;
-    transform-origin: center center;
-    transition: transform 0.2s ease-out;
     pointer-events: none;
+    transition: transform 0.2s ease-out;
   }
 
-  /* =========================
-     CARD FLOATING BUTTON
-  ========================== */
+  /* ======================================
+     FLOATING CARD BUTTON
+     ====================================== */
   #cardToggleButton {
     position: fixed;
     top: 10px;
@@ -209,87 +158,100 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 4000;
+    z-index: 5000;
   }
 
-  /* =========================
-     CARD OVERLAY (DRAWER)
-  ========================== */
+  /* ======================================
+     CARD DRAWER — FULL HEIGHT BELOW GRID
+     ====================================== */
   #cardOverlay {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
-    max-height: 70vh; /* <— MORE SPACE NOW */
-    background: radial-gradient(circle at top, #020617, #020617);
+
+    height: auto;
+    max-height: none;
+
+    background: #020617;
     border-top: 1px solid rgba(148,163,184,0.7);
-    box-shadow: 0 -12px 30px rgba(15,23,42,0.9);
+
     display: none;
     flex-direction: column;
-    padding: 8px 10px 10px;
-    gap: 8px;
+    padding: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
     z-index: 3000;
+
+    white-space: nowrap;
   }
 
   #cardOverlayHeader {
     display: flex;
-    align-items: center;
     justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
   }
 
   #cardOverlayTitle {
-    font-size: 12px;
+    font-size: 13px;
+    color: #9ca3af;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: #9ca3af;
   }
 
-  #cardOverlayCards {
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-  }
-
+  /* ======================================
+     PORTRAIT CARDS — DYNAMIC SIZE
+     ====================================== */
   .card {
-    position: relative;
-    flex: 0 0 auto;
-    width: 64px;
-    height: 90px;
-    border-radius: 10px;
+    display: inline-block;
     background: radial-gradient(circle at top, #0f172a, #020617);
-    border: 1px solid rgba(148,163,184,0.7);
-    box-shadow: 0 8px 16px rgba(15,23,42,0.9);
+    border: 1px solid rgba(148,163,184,0.6);
+    border-radius: 10px;
+
+    /* Height fills drawer; width auto (portrait) */
+    height: calc(100% - 60px);  /* minus header + padding */
+    aspect-ratio: 0.7 / 1;      /* portrait shape */
+
+    overflow: hidden;
+    position: relative;
+    margin-right: 10px;
+    vertical-align: top;
     cursor: pointer;
   }
 
-  .card-disabled { opacity: 0.35; }
+  .card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
   .card-selected {
-    transform: translateY(-4px) scale(1.06);
     border-color: rgba(250,204,21,1);
+    transform: translateY(-3px) scale(1.05);
+  }
+
+  .card-disabled {
+    opacity: 0.35;
+    pointer-events: none;
   }
 
   .card-count {
     position: absolute;
-    right: 4px;
     bottom: 4px;
-    padding: 2px 5px;
-    border-radius: 999px;
+    right: 4px;
     background: rgba(15,23,42,0.9);
+    padding: 2px 5px;
+    border-radius: 8px;
     font-size: 10px;
   }
 </style>
 </head>
 <body>
 
-<!-- NEW GAME SCREEN -->
-<div id="newGameScreen">
-  <div id="newGameTitle">New World</div>
-  <button id="newGameButton">Start New Game</button>
-</div>
-
 <div id="outerRoot">
 
-  <!-- TOP TOOLBAR -->
+  <!-- TOOLBAR -->
   <div id="banner">
     <div id="banner-left">
       <div id="banner-sub">
@@ -309,291 +271,240 @@
       <div id="grid"></div>
     </div>
   </div>
+
 </div>
 
+<!-- FLOATING CARD BUTTON -->
 <button id="cardToggleButton">🃏</button>
 
-<!-- CARD OVERLAY -->
+<!-- CARD DRAWER -->
 <div id="cardOverlay">
   <div id="cardOverlayHeader">
-    <div id="cardOverlayTitle">Cards</div>
+    <span id="cardOverlayTitle">Cards</span>
     <button id="cardOverlayClose">✕</button>
   </div>
+
   <div id="cardOverlayCards"></div>
 </div>
 
 <script>
 /* ======================================================================
-   ALL SCRIPT CODE BELOW — SAME AS BEFORE EXCEPT FOR:
-   - updated banner formatting
-   - removed coordinates
-   - Explore button always says “Explore”
-   ====================================================================== */
+   SCRIPT -- ALL NEW CARD DRAWER LOGIC INCLUDED
+====================================================================== */
 
-const SAVE_KEY = "myGameSaveV1";
 const SIZE = 5;
+const SAVE_KEY = "myGameSaveV1";
 
 const TILE_TYPES = {
-  home:   { label: "Home",   image: "tile_home.png" },
-  plains: { label: "Plains", image: "tile_plains.png" },
-  hills:  { label: "Hills",  image: "tile_hills.png" },
-  forest: { label: "Forest", image: "tile_forest.png" }
+  home:   { label:"Home",   image:"tile_home.png" },
+  plains: { label:"Plains", image:"tile_plains.png" },
+  hills:  { label:"Hills",  image:"tile_hills.png" },
+  forest: { label:"Forest", image:"tile_forest.png" }
 };
 
 const DEFAULT_CARDS = [
-  { type: "plains", label: "Plains", image: "card_plains.png", count: 3 },
-  { type: "hills",  label: "Hills",  image: "card_hills.png",  count: 2 },
-  { type: "forest", label: "Forest", image: "card_forest.png", count: 2 }
+  { type:"plains", label:"Plains", image:"card_plains.png", count:3 },
+  { type:"hills",  label:"Hills",  image:"card_hills.png",  count:2 },
+  { type:"forest", label:"Forest", image:"card_forest.png", count:2 }
 ];
 
-let world, playerX, playerY, cards;
-let selectedCardType = null;
-let pendingTile = null;
-let cardMenuOpen = false;
-let playerFacing = 1;
+let world, cards, playerX, playerY;
+let selectedCardType=null;
+let pendingTile=null;
+let cardMenuOpen=false;
+let playerFacing=1;
 
-/* =======================
+const gridEl=document.getElementById("grid");
+const bannerTileNameEl=document.getElementById("banner-tileName");
+const enterButtonEl=document.getElementById("enterButtonTop");
+const messageBannerEl=document.getElementById("messageBanner");
+const cardOverlayEl=document.getElementById("cardOverlay");
+const cardOverlayCardsEl=document.getElementById("cardOverlayCards");
+
+let playerSpriteEl=document.createElement("div");
+playerSpriteEl.className="player-sprite";
+
+/* ===========================================
    SAVE / LOAD
-======================= */
-function createFreshState() {
-  world = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
-  playerX = 2;
-  playerY = 2;
-  world[playerY][playerX] = { type: "home" };
-  cards = DEFAULT_CARDS.map(c => ({ ...c }));
+=========================================== */
+function createFreshState(){
+  world=Array.from({length:SIZE},()=>Array(SIZE).fill(null));
+  playerX=2; playerY=2;
+  world[playerY][playerX]={ type:"home" };
+  cards=DEFAULT_CARDS.map(c=>({...c}));
 }
 
-function loadGame() {
-  const raw = localStorage.getItem(SAVE_KEY);
+function loadGame(){
+  const raw=localStorage.getItem(SAVE_KEY);
   if (!raw) return false;
   try {
-    const data = JSON.parse(raw);
-    if (!data.world || !data.player) return false;
-
-    world = data.world;
-    playerX = data.player.x;
-    playerY = data.player.y;
-    cards = Array.isArray(data.cards)
-      ? data.cards
-      : DEFAULT_CARDS.map(c => ({ ...c }));
-
+    const data=JSON.parse(raw);
+    world=data.world;
+    playerX=data.player.x;
+    playerY=data.player.y;
+    cards=data.cards;
     return true;
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
-function saveGame() {
-  localStorage.setItem(
-    SAVE_KEY,
-    JSON.stringify({ world, player: { x: playerX, y: playerY }, cards })
-  );
+function saveGame(){
+  localStorage.setItem(SAVE_KEY, JSON.stringify({
+    world,
+    player:{x:playerX,y:playerY},
+    cards
+  }));
 }
 
-/* =======================
-   DOM REFERENCES
-======================= */
-const newGameScreen = document.getElementById("newGameScreen");
-const newGameButton = document.getElementById("newGameButton");
-const outerRoot     = document.getElementById("outerRoot");
+/* ===========================================
+   BANNER
+=========================================== */
+function updateBanner(){
+  const tile=getTile(playerX,playerY);
 
-const gridEl = document.getElementById("grid");
-const bannerTileNameEl = document.getElementById("banner-tileName");
-const enterButtonEl = document.getElementById("enterButtonTop");
-
-const cardToggleButtonEl = document.getElementById("cardToggleButton");
-const cardOverlayEl = document.getElementById("cardOverlay");
-const cardOverlayCardsEl = document.getElementById("cardOverlayCards");
-const cardOverlayTitleEl = document.getElementById("cardOverlayTitle");
-const cardOverlayCloseEl = document.getElementById("cardOverlayClose");
-
-const messageBannerEl = document.getElementById("messageBanner");
-
-let tileElements = [];
-let playerSpriteEl = document.createElement("div");
-playerSpriteEl.className = "player-sprite";
-
-/* =======================
-   HELPERS
-======================= */
-function inBounds(x,y){ return x>=0 && x<SIZE && y>=0 && y<SIZE; }
-function getTile(x,y){ return inBounds(x,y) ? world[y][x] : null; }
-function isAdjacent(x,y){
-  return Math.abs(x-playerX) + Math.abs(y-playerY) === 1;
-}
-function getCard(type){ return cards.find(c => c.type===type); }
-function canPlayAnyCard(){ return cards.some(c => c.count>0); }
-
-/* =======================
-   BANNER UPDATE
-======================= */
-function updateBanner() {
-  const tile = getTile(playerX, playerY);
-
-  if (!tile) {
-    bannerTileNameEl.textContent = "Empty";
+  if (!tile){
+    bannerTileNameEl.textContent="Empty";
     return;
   }
 
-  if (tile.type === "home") {
-    bannerTileNameEl.textContent = "Home";
+  if (tile.type==="home"){
+    bannerTileNameEl.textContent="Home";
     return;
   }
 
-  const rarity = tile.rarity || "common";
-  const rarityCap = rarity.charAt(0).toUpperCase() + rarity.slice(1);
-  const biome = TILE_TYPES[tile.type]?.label || tile.type;
+  const rarity=tile.rarity || "common";
+  const biome=TILE_TYPES[tile.type].label;
+  const rCap=rarity.charAt(0).toUpperCase()+rarity.slice(1);
 
   bannerTileNameEl.innerHTML =
-    `<span class="rarity-${rarity}">${rarityCap}</span> ${biome}`;
+    `<span class="rarity-${rarity}">${rCap}</span> ${biome}`;
 }
 
-/* =======================
-   MESSAGE BANNER TEMP POPUP
-======================= */
-function showMessageBanner(rarity, biome) {
-  if (biome === "Home") {
-    messageBannerEl.innerHTML = "Discovered Home!";
+/* ===========================================
+   MESSAGE BANNER
+=========================================== */
+function showMessageBanner(rarity, biome){
+  if (biome==="Home"){
+    messageBannerEl.innerHTML="Discovered Home!";
   } else {
-    const rarityCap = rarity.charAt(0).toUpperCase() + rarity.slice(1);
+    const rCap=rarity.charAt(0).toUpperCase()+rarity.slice(1);
     messageBannerEl.innerHTML =
-      `Discovered <span class="rarity-${rarity}">${rarityCap}</span> ${biome}!`;
+      `Discovered <span class="rarity-${rarity}">${rCap}</span> ${biome}!`;
   }
 
-  messageBannerEl.style.display = "block";
-  requestAnimationFrame(() => {
-    messageBannerEl.style.opacity = "1";
-  });
+  messageBannerEl.style.display="block";
+  requestAnimationFrame(()=>messageBannerEl.style.opacity="1");
 
-  setTimeout(() => {
-    messageBannerEl.style.opacity = "0";
-    setTimeout(() => messageBannerEl.style.display = "none", 350);
-  }, 1800);
+  setTimeout(()=>{
+    messageBannerEl.style.opacity="0";
+    setTimeout(()=>messageBannerEl.style.display="none",300);
+  },1800);
 }
 
-/* =======================
+/* ===========================================
    EXPLORE BUTTON
-======================= */
-function updateEnterButton() {
-  const tile = getTile(playerX, playerY);
-  if (!tile) return enterButtonEl.style.display = "none";
-  enterButtonEl.textContent = "Explore";
-  enterButtonEl.style.display = "inline-block";
+=========================================== */
+function updateEnterButton(){
+  const tile=getTile(playerX,playerY);
+  if (!tile) return enterButtonEl.style.display="none";
+
+  enterButtonEl.textContent="Explore";
+  enterButtonEl.style.display="inline-block";
 }
 
-enterButtonEl.addEventListener("click", () => {
-  const tile = getTile(playerX, playerY);
+enterButtonEl.onclick=()=>{
+  const tile=getTile(playerX,playerY);
   if (!tile) return;
 
-  const rarity = tile.type === "home" ? "common" : tile.rarity || "common";
+  const rarity=tile.type==="home" ? "common" : tile.rarity || "common";
 
   localStorage.setItem("innerworld_entry", JSON.stringify({
-    tile: { type: tile.type, rarity },
-    playerStart: { x: 250, y: 250 }
+    tile:{ type:tile.type, rarity },
+    playerStart:{ x:250, y:250 }
   }));
 
   saveGame();
-  window.location.href = "innerworld.html";
-});
+  window.location.href="innerworld.html";
+};
 
-/* =======================
+/* ===========================================
    GRID
-======================= */
-function initGridDOM() {
-  gridEl.innerHTML = "";
-  tileElements = [];
-
+=========================================== */
+function initGridDOM(){
+  gridEl.innerHTML="";
   for (let y=0; y<SIZE; y++){
-    const row=[];
     for (let x=0; x<SIZE; x++){
       const d=document.createElement("div");
       d.className="tile";
       d.dataset.x=x;
       d.dataset.y=y;
-      d.addEventListener("click", onTileClick);
+      d.onclick=onTileClick;
       gridEl.appendChild(d);
-      row.push(d);
     }
-    tileElements.push(row);
   }
-
   gridEl.appendChild(playerSpriteEl);
 }
 
-function renderGrid() {
-  const anyCards = canPlayAnyCard();
+function renderGrid(){
+  for (const d of gridEl.children){
+    if (!d.dataset.x) continue;
 
-  for (let y=0; y<SIZE; y++){
-    for (let x=0; x<SIZE; x++){
-      const d = tileElements[y][x];
-      const tile = world[y][x];
+    const x=parseInt(d.dataset.x);
+    const y=parseInt(d.dataset.y);
+    const tile=getTile(x,y);
 
-      d.className = "tile";
-      d.style.backgroundImage = "";
+    d.style.backgroundImage = tile ? `url('${TILE_TYPES[tile.type].image}')` : "";
 
-      if (!tile) {
-        // empty
-      } else {
-        const img = TILE_TYPES[tile.type]?.image;
-        if (img) d.style.backgroundImage = `url('${img}')`;
-      }
-
-      if (!tile && anyCards && isAdjacent(x,y))
-        d.classList.add("tile-highlight-playable");
-    }
+    d.classList.toggle("tile-highlight-playable",
+      !tile && canPlay() && isAdjacent(x,y)
+    );
   }
-
   positionPlayerSprite();
 }
 
-function positionPlayerSprite() {
-  const tile = tileElements[playerY]?.[playerX];
-  if (!tile) return;
+function positionPlayerSprite(){
+  const tileEl = [...gridEl.children]
+    .find(el => el.dataset.x==playerX && el.dataset.y==playerY);
+  if (!tileEl) return;
 
-  const tileRect = tile.getBoundingClientRect();
-  const gridRect = gridEl.getBoundingClientRect();
+  const tr=tileEl.getBoundingClientRect();
+  const gr=gridEl.getBoundingClientRect();
 
-  const w = tileRect.width;
-  const h = tileRect.height;
+  const x=tr.left-gr.left;
+  const y=tr.top -gr.top;
 
-  const x = tileRect.left - gridRect.left;
-  const y = tileRect.top - gridRect.top;
-
-  playerSpriteEl.style.width = w+"px";
-  playerSpriteEl.style.height = h+"px";
-
-  const scaleX = playerFacing === -1 ? -1 : 1;
+  playerSpriteEl.style.width=tr.width+"px";
+  playerSpriteEl.style.height=tr.height+"px";
 
   playerSpriteEl.style.transform =
-    `translate(${x}px, ${y}px) scaleX(${scaleX})`;
+    `translate(${x}px,${y}px) scaleX(${playerFacing===-1?-1:1})`;
 }
 
 window.addEventListener("resize", positionPlayerSprite);
 
-/* =======================
-   TILE CLICK HANDLER
-======================= */
+/* ===========================================
+   TILE CLICK
+=========================================== */
 function onTileClick(e){
-  const x = parseInt(e.currentTarget.dataset.x);
-  const y = parseInt(e.currentTarget.dataset.y);
-  const tile = getTile(x,y);
+  const x=parseInt(e.target.dataset.x);
+  const y=parseInt(e.target.dataset.y);
+  const tile=getTile(x,y);
 
-  if (!tile && isAdjacent(x,y) && canPlayAnyCard()) {
-    pendingTile = { x,y };
-    selectedCardType = null;
-    openCardOverlay("tile");
+  if (!tile && isAdjacent(x,y) && canPlay()){
+    pendingTile={x,y};
+    selectedCardType=null;
+    openCardDrawer(true);
     return;
   }
 
-  if (tile && isAdjacent(x,y)) {
-    if (x < playerX) playerFacing = -1;
-    if (x > playerX) playerFacing =  1;
+  if (tile && isAdjacent(x,y)){
+    if (x<playerX) playerFacing=-1;
+    if (x>playerX) playerFacing=1;
 
     playerX=x; playerY=y;
 
     pendingTile=null;
     selectedCardType=null;
-    closeCardOverlay();
+    closeCardDrawer();
 
     renderGrid();
     updateBanner();
@@ -602,18 +513,72 @@ function onTileClick(e){
     return;
   }
 
-  if (cardMenuOpen) closeCardOverlay();
+  if (cardMenuOpen) closeCardDrawer();
 }
 
-/* =======================
-   CARD OVERLAY / SELECT
-======================= */
-let cardElements=[];
+function isAdjacent(x,y){
+  return Math.abs(x-playerX)+Math.abs(y-playerY)===1;
+}
 
-function initCardsDOM(){
+function canPlay(){
+  return cards.some(c=>c.count>0);
+}
+
+/* ===========================================
+   CARD DRAWER
+=========================================== */
+document.getElementById("cardToggleButton").onclick = ()=>{
+  if (cardMenuOpen) closeCardDrawer();
+  else openCardDrawer(false);
+};
+
+document.getElementById("cardOverlayClose").onclick = closeCardDrawer;
+
+function openCardDrawer(isTile){
+  cardMenuOpen=true;
+  cardOverlayEl.style.display="flex";
+
+  if (isTile && pendingTile){
+    const {x,y} = pendingTile;
+    cardOverlayTitleEl.textContent = `Select card for (${x+1},${y+1})`;
+  } else {
+    cardOverlayTitleEl.textContent = "Cards";
+  }
+
+  renderCardDrawer();
+  adjustDrawerHeight();
+}
+
+function closeCardDrawer(){
+  cardMenuOpen=false;
+  cardOverlayEl.style.display="none";
+  selectedCardType=null;
+  pendingTile=null;
+}
+
+function adjustDrawerHeight(){
+  const bannerH=document.getElementById("banner").offsetHeight;
+  const msgH=messageBannerEl.offsetHeight || 0;
+  const gridH=document.getElementById("gridWrapper").offsetHeight;
+
+  const used= bannerH + msgH + gridH + 8;
+  const total= window.innerHeight;
+
+  const drawerH = Math.max(100, total - used);
+
+  cardOverlayEl.style.height = drawerH + "px";
+
+  // Force cards to resize (portrait)
+  for (const card of cardOverlayCardsEl.children){
+    card.style.height = (drawerH - 50) + "px"; // 50px padding for header
+    card.style.width  = ((drawerH - 50) * 0.7) + "px";
+  }
+}
+
+window.addEventListener("resize", adjustDrawerHeight);
+
+function renderCardDrawer(){
   cardOverlayCardsEl.innerHTML="";
-  cardElements=[];
-
   for (const card of cards){
     const div=document.createElement("div");
     div.className="card";
@@ -624,140 +589,93 @@ function initCardsDOM(){
 
     const count=document.createElement("div");
     count.className="card-count";
+    count.textContent="x" + card.count;
 
     div.appendChild(img);
     div.appendChild(count);
-    div.addEventListener("click", onOverlayCardClick);
+    div.onclick = onCardClick;
+
+    if (card.count===0) div.classList.add("card-disabled");
 
     cardOverlayCardsEl.appendChild(div);
-    cardElements.push({ type:card.type, el:div, countEl:count });
   }
 
-  renderCards();
+  adjustDrawerHeight();
 }
 
-function renderCards(){
-  for (const entry of cardElements){
-    const data = getCard(entry.type);
-    const hasAny = data && data.count>0;
-    const isSel = (selectedCardType===entry.type);
-
-    entry.countEl.textContent = data ? `x${data.count}` : `x0`;
-
-    entry.el.classList.toggle("card-disabled", !hasAny);
-    entry.el.classList.toggle("card-selected", hasAny && isSel);
-  }
-}
-
-function openCardOverlay(reason){
-  cardMenuOpen=true;
-  cardOverlayEl.style.display="flex";
-
-  if (reason==="tile" && pendingTile){
-    cardOverlayTitleEl.textContent =
-      `Select a card for (${pendingTile.x+1},${pendingTile.y+1})`;
-  } else {
-    cardOverlayTitleEl.textContent="Cards";
-    pendingTile=null;
-    selectedCardType=null;
-  }
-
-  renderCards();
-}
-
-function closeCardOverlay(){
-  cardMenuOpen=false;
-  cardOverlayEl.style.display="none";
-  pendingTile=null;
-  selectedCardType=null;
-  renderCards();
-}
-
-cardToggleButtonEl.addEventListener("click",()=>{
-  if (cardMenuOpen) closeCardOverlay();
-  else openCardOverlay("manual");
-});
-
-cardOverlayCloseEl.addEventListener("click",closeCardOverlay);
-
-function onOverlayCardClick(e){
+function onCardClick(e){
   const type=e.currentTarget.dataset.type;
   const card=getCard(type);
   if (!card || card.count<=0) return;
 
   if (pendingTile && selectedCardType===type){
-    placeCardOnPendingTile(type);
+    placeCard(type);
     return;
   }
 
   selectedCardType=type;
-  renderCards();
+
+  for (const c of cardOverlayCardsEl.children){
+    c.classList.toggle("card-selected", c.dataset.type===type);
+  }
 }
 
-/* =======================
-   PLACE CARD
-======================= */
-function placeCardOnPendingTile(type){
-  if (!pendingTile) return;
+function placeCard(type){
   const {x,y} = pendingTile;
-
-  if (!isAdjacent(x,y)) return;
-  if (getTile(x,y) !== null) return;
-
   const card=getCard(type);
+
   if (!card || card.count<=0) return;
 
-  const rarity="common"; // placeholder until rarity system added
+  const rarity="common";
 
   world[y][x] = { type, rarity };
 
   card.count--;
-  if (card.count<=0) selectedCardType=null;
 
-  const biome = TILE_TYPES[type]?.label || type;
-  showMessageBanner(type==="home" ? "common" : rarity, biome);
+  const biome=TILE_TYPES[type].label;
+  showMessageBanner(rarity, biome);
 
   pendingTile=null;
 
   saveGame();
   renderGrid();
-  renderCards();
   updateBanner();
   updateEnterButton();
-  closeCardOverlay();
+  closeCardDrawer();
 }
 
-/* =======================
-   BOOTSTRAP
-======================= */
+/* ===========================================
+   GETTERS
+=========================================== */
+function getTile(x,y){
+  return world[y][x];
+}
+function getCard(type){
+  return cards.find(c=>c.type===type);
+}
+function isBound(x,y){
+  return x>=0&&x<SIZE&&y>=0&&y<SIZE;
+}
+
+/* ===========================================
+   INIT
+=========================================== */
 function initUI(){
   initGridDOM();
-  initCardsDOM();
   renderGrid();
-  renderCards();
   updateBanner();
   updateEnterButton();
 }
 
 (function start(){
-  const hasSave = loadGame();
-
+  const hasSave=loadGame();
   if (!hasSave){
-    outerRoot.style.display="none";
-    newGameScreen.style.display="flex";
-    newGameButton.addEventListener("click",()=>{
-      createFreshState();
-      saveGame();
-      newGameScreen.style.display="none";
-      outerRoot.style.display="flex";
-      initUI();
-    });
-  } else {
-    outerRoot.style.display="flex";
-    newGameScreen.style.display="none";
-    initUI();
+    createFreshState();
+    saveGame();
   }
+  initUI();
 })();
 </script>
+
 </body>
 </html>
