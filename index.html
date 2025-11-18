@@ -560,20 +560,21 @@ function adjustDrawerHeight(){
   const bannerH=document.getElementById("banner").offsetHeight;
   const msgH=messageBannerEl.offsetHeight || 0;
   const gridH=document.getElementById("gridWrapper").offsetHeight;
+  const total=window.innerHeight;
 
-  const used= bannerH + msgH + gridH + 8;
-  const total= window.innerHeight;
-
-  const drawerH = Math.max(100, total - used);
-
+  const drawerH = Math.max(140, total - (bannerH + msgH + gridH + 8));
   cardOverlayEl.style.height = drawerH + "px";
 
-  // Force cards to resize (portrait)
+  // The usable height inside drawer for cards
+  const cardHeight = Math.max(100, drawerH - 60); 
+  const cardWidth  = cardHeight * 0.7;
+
   for (const card of cardOverlayCardsEl.children){
-    card.style.height = (drawerH - 50) + "px"; // 50px padding for header
-    card.style.width  = ((drawerH - 50) * 0.7) + "px";
+    card.style.height = cardHeight + "px";
+    card.style.width  = cardWidth + "px";
   }
 }
+
 
 window.addEventListener("resize", adjustDrawerHeight);
 
