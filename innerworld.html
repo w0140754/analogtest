@@ -315,7 +315,8 @@ function update(dt){
   let damping = 0.93;
   let maxAngle = 0.35;
 
-  let targetAngle = player.moving ? (-sdX * maxAngle) : 0;
+// Correct pendulum direction: lag behind movement
+  let targetAngle = player.moving ? (sdX * -maxAngle) : 0;
   player.bellSwing += (targetAngle - player.bellSwing) * swingSpeed * dt;
   player.bellSwing *= damping;
 
@@ -358,7 +359,7 @@ function drawPlayer() {
 
   // Pivot where owl holds the bell
   let pivotX = drawX;
-  let pivotY = drawY + scaledOwlH*0.40;
+  let pivotY = drawY + scaledOwlH*0.40-10;
 
   ctx.translate(pivotX, pivotY);
   ctx.rotate(player.bellSwing);
