@@ -149,16 +149,15 @@ let player = {
   facingLeft: false,
   moving: false,
 
-  // Smooth direction handling
+  // Smooth direction
   dirSmoothX: 0,
   dirSmoothY: 1,
 
   // Idle hover
   idleBobTime: 0,
 
-  // Proper pendulum swing
+  // Bell pendulum
   bellSwing: 0,
-  bellSwingVel: 0,
 
   hitR: 40,
   hitOffsetY: 10
@@ -177,8 +176,8 @@ function clampCamera() {
 }
 
 function updateCamera() {
-  const tx = player.x - canvas.width/2;
-  const ty = player.y - canvas.height/2;
+  const tx = player.x - canvas.width / 2;
+  const ty = player.y - canvas.height / 2;
   camera.x += (tx - camera.x) * 0.1;
   camera.y += (ty - camera.y) * 0.1;
   clampCamera();
@@ -187,8 +186,8 @@ function updateCamera() {
 // ======================================================
 // JOYSTICK
 // ======================================================
-const joyDiv = document.getElementById("joystick");
-const stick = document.getElementById("stick");
+const joyDiv  = document.getElementById("joystick");
+const stick   = document.getElementById("stick");
 
 let joy = { active:false, dx:0, dy:0, originX:0, originY:0 };
 
@@ -251,21 +250,21 @@ window.addEventListener("keydown", e => setKey(e,true));
 window.addEventListener("keyup",   e => setKey(e,false));
 
 // ======================================================
-// UPDATE LOGIC
+// UPDATE
 // ======================================================
 function update(dt){
   let vx = joy.dx;
   let vy = joy.dy;
 
-  if (keys.left) vx = -1;
+  if (keys.left)  vx = -1;
   if (keys.right) vx = 1;
-  if (keys.up) vy = -1;
-  if (keys.down) vy = 1;
+  if (keys.up)    vy = -1;
+  if (keys.down)  vy = 1;
 
   const lastDir = player.dir;
   player.moving = (Math.abs(vx) > 0.05 || Math.abs(vy) > 0.05);
 
-  // Direction smoothing
+  // Smooth direction vector
   player.dirSmoothX += (vx - player.dirSmoothX) * 10 * dt;
   player.dirSmoothY += (vy - player.dirSmoothY) * 10 * dt;
 
@@ -278,26 +277,26 @@ function update(dt){
       player.facingLeft = (sdX < 0);
     } else {
       if (sdY < 0) player.dir = "back";
-      else player.dir = "front";
+      else         player.dir = "front";
       player.facingLeft = false;
     }
 
-    const len = Math.hypot(vx,vy);
-    if (len > 0) { vx/=len; vy/=len; }
+    const len = Math.hypot(vx, vy);
+    if (len > 0) { vx /= len; vy /= len; }
 
-    const nextX = player.x + vx*player.speed*dt;
-    const nextY = player.y + vy*player.speed*dt;
+    const nextX = player.x + vx * player.speed * dt;
+    const nextY = player.y + vy * player.speed * dt;
 
-    if (!circleBlocked(nextX, player.y+player.hitOffsetY, player.hitR))
+    if (!circleBlocked(nextX, player.y + player.hitOffsetY, player.hitR))
       player.x = nextX;
-    if (!circleBlocked(player.x, nextY+player.hitOffsetY, player.hitR))
+    if (!circleBlocked(player.x, nextY + player.hitOffsetY, player.hitR))
       player.y = nextY;
 
   } else {
     player.dir = lastDir;
   }
 
-  // Always flap wings
+  // Always animate wings
   player.frameTimer += dt;
   if (player.frameTimer > 0.15) {
     player.frameIndex = (player.frameIndex + 1) % animPattern.length;
@@ -310,13 +309,18 @@ function update(dt){
   else
     player.idleBobTime = 0;
 
-  // Proper pendulum physics for bell
-  let swingSpeed = 6;
-  let damping = 0.93;
-  let maxAngle = 0.35;
+  // Bell swing: always opposite movement direction
+  const swingSpeed = 6;
+  const damping = 0.93;
+  const maxAngle = 0.35; // ~20 degrees
 
-// Correct pendulum direction: lag behind movement
-  let targetAngle = player.moving ? (sdX * -maxAngle) : 0;
+  let targetAngle = 0;
+  if (player.moving) {
+    // moving right (sdX > 0) → bell leans left (negative)
+    if (sdX > 0.1)      targetAngle = -maxAngle;
+    else if (sdX < -0.1) targetAngle =  maxAngle; // moving left → bell leans right
+  }
+
   player.bellSwing += (targetAngle - player.bellSwing) * swingSpeed * dt;
   player.bellSwing *= damping;
 
@@ -332,8 +336,8 @@ function drawPlayer() {
 
   const sheet =
     dir === "front" ? owlFront :
-    dir === "back" ? owlBack :
-                     owlSide;
+    dir === "back"  ? owlBack  :
+                      owlSide;
 
   const scaledOwlW = OWL_W * player.scale;
   const scaledOwlH = OWL_H * player.scale;
@@ -343,7 +347,7 @@ function drawPlayer() {
   const drawX = player.x - camera.x;
   let drawY = player.y - camera.y;
 
-  // Idle bobbing
+  // Idle bob
   if (!player.moving)
     drawY += Math.sin(player.idleBobTime) * 4;
 
@@ -352,26 +356,23 @@ function drawPlayer() {
   if (dir === "side") bellFrame = 1;
   if (dir === "back") bellFrame = 2;
 
-  // ================================
-  // CORRECT PENDULUM BELL DRAWING
-  // ================================
+  // ====== BELL (PENDULUM) ======
   ctx.save();
 
-  // Pivot where owl holds the bell
-  let pivotX = drawX;
-  let pivotY = drawY + scaledOwlH*0.40-10;
+  // Pivot just below owl body (raised 10px)
+  const pivotX = drawX;
+  const pivotY = drawY + scaledOwlH * 0.40 - 10;
 
   ctx.translate(pivotX, pivotY);
   ctx.rotate(player.bellSwing);
 
-  // If facing left, flip horizontally
-  let flip = (dir === "side" && player.facingLeft) ? -1 : 1;
+  const flip = (dir === "side" && player.facingLeft) ? -1 : 1;
   ctx.scale(flip, 1);
 
   ctx.drawImage(
     bellSheet,
     0, bellFrame * BELL_H, BELL_W, BELL_H,
-    -scaledBellW/2,
+    -scaledBellW / 2,
     0,
     scaledBellW,
     scaledBellH
@@ -379,9 +380,7 @@ function drawPlayer() {
 
   ctx.restore();
 
-  // ================================
-  // DRAW OWL
-  // ================================
+  // ====== OWL ======
   ctx.save();
   if (dir === "side" && player.facingLeft) {
     ctx.translate(drawX, drawY);
@@ -414,8 +413,11 @@ function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
   if (bg.complete)
-    ctx.drawImage(bg, camera.x, camera.y, canvas.width, canvas.height,
-                       0,0, canvas.width, canvas.height);
+    ctx.drawImage(
+      bg,
+      camera.x, camera.y, canvas.width, canvas.height,
+      0, 0, canvas.width, canvas.height
+    );
 
   drawPlayer();
 }
