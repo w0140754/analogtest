@@ -87,12 +87,12 @@ bg.src = `innerworld/${TILE_TYPE}_${TILE_RARITY}_bg.png`;
 const collisionImg = new Image();
 collisionImg.src = `collision/${TILE_TYPE}_${TILE_RARITY}_col.png`;
 
-// Owl sheets
+// Owl animation sheets
 const owlFront = new Image(); owlFront.src = "owl_fly_front.png";
 const owlBack  = new Image(); owlBack.src  = "owl_fly_back.png";
 const owlSide  = new Image(); owlSide.src  = "owl_fly_side.png";
 
-// Bell sheet
+// Bell sheet (3 vertical frames)
 const bellSheet = new Image();
 bellSheet.src = "bell.png";
 
@@ -149,13 +149,16 @@ let player = {
   facingLeft: false,
   moving: false,
 
-  // New smoothing + animation upgrades:
-  dirSmoothX: 0,   // smoothed direction vector (x)
-  dirSmoothY: 1,   // smoothed direction vector (y)
+  // Smooth direction handling
+  dirSmoothX: 0,
+  dirSmoothY: 1,
 
-  idleBobTime: 0,  // for idle hover animation
-  bellSwing: 0,    // current swing angle in radians
-  bellSwingVel: 0, // velocity of bell swing
+  // Idle hover
+  idleBobTime: 0,
+
+  // Proper pendulum swing
+  bellSwing: 0,
+  bellSwingVel: 0,
 
   hitR: 40,
   hitOffsetY: 10
@@ -174,8 +177,8 @@ function clampCamera() {
 }
 
 function updateCamera() {
-  const tx = player.x - canvas.width / 2;
-  const ty = player.y - canvas.height / 2;
+  const tx = player.x - canvas.width/2;
+  const ty = player.y - canvas.height/2;
   camera.x += (tx - camera.x) * 0.1;
   camera.y += (ty - camera.y) * 0.1;
   clampCamera();
@@ -184,8 +187,8 @@ function updateCamera() {
 // ======================================================
 // JOYSTICK
 // ======================================================
-const joyDiv  = document.getElementById("joystick");
-const stick   = document.getElementById("stick");
+const joyDiv = document.getElementById("joystick");
+const stick = document.getElementById("stick");
 
 let joy = { active:false, dx:0, dy:0, originX:0, originY:0 };
 
@@ -209,7 +212,7 @@ canvas.addEventListener("touchmove", e => {
   const dx = t.clientX - joy.originX;
   const dy = t.clientY - joy.originY;
 
-  const dist = Math.hypot(dx, dy);
+  const dist = Math.hypot(dx,dy);
   const max = 40;
 
   let ndx = dx, ndy = dy;
@@ -221,14 +224,13 @@ canvas.addEventListener("touchmove", e => {
   stick.style.left = (30 + ndx) + "px";
   stick.style.top  = (30 + ndy) + "px";
 
-  joy.dx = ndx / max;
-  joy.dy = ndy / max;
+  joy.dx = ndx/max;
+  joy.dy = ndy/max;
 });
 
 canvas.addEventListener("touchend", () => {
   joy.active = false;
-  joy.dx = 0;
-  joy.dy = 0;
+  joy.dx = joy.dy = 0;
   joyDiv.style.display = "none";
 });
 
@@ -249,31 +251,26 @@ window.addEventListener("keydown", e => setKey(e,true));
 window.addEventListener("keyup",   e => setKey(e,false));
 
 // ======================================================
-// UPDATE
+// UPDATE LOGIC
 // ======================================================
 function update(dt){
   let vx = joy.dx;
   let vy = joy.dy;
 
-  if (keys.left)  vx = -1;
+  if (keys.left) vx = -1;
   if (keys.right) vx = 1;
-  if (keys.up)    vy = -1;
-  if (keys.down)  vy = 1;
+  if (keys.up) vy = -1;
+  if (keys.down) vy = 1;
 
-  const wasDir = player.dir;
+  const lastDir = player.dir;
   player.moving = (Math.abs(vx) > 0.05 || Math.abs(vy) > 0.05);
 
-  // Smooth direction vectors
-  const targetDX = vx;
-  const targetDY = vy;
+  // Direction smoothing
+  player.dirSmoothX += (vx - player.dirSmoothX) * 10 * dt;
+  player.dirSmoothY += (vy - player.dirSmoothY) * 10 * dt;
 
-  // Smooth blend (direction smoothing)
-  player.dirSmoothX += (targetDX - player.dirSmoothX) * 10 * dt;
-  player.dirSmoothY += (targetDY - player.dirSmoothY) * 10 * dt;
-
-  // Determine direction based on smoothed vector
-  let sdX = player.dirSmoothX;
-  let sdY = player.dirSmoothY;
+  const sdX = player.dirSmoothX;
+  const sdY = player.dirSmoothY;
 
   if (player.moving) {
     if (Math.abs(sdX) > Math.abs(sdY)) {
@@ -281,44 +278,46 @@ function update(dt){
       player.facingLeft = (sdX < 0);
     } else {
       if (sdY < 0) player.dir = "back";
-      else         player.dir = "front";
+      else player.dir = "front";
       player.facingLeft = false;
     }
 
-    const len = Math.hypot(vx, vy);
-    if (len > 0) { vx /= len; vy /= len; }
+    const len = Math.hypot(vx,vy);
+    if (len > 0) { vx/=len; vy/=len; }
 
-    const nextX = player.x + vx * player.speed * dt;
-    const nextY = player.y + vy * player.speed * dt;
+    const nextX = player.x + vx*player.speed*dt;
+    const nextY = player.y + vy*player.speed*dt;
 
-    if (!circleBlocked(nextX, player.y + player.hitOffsetY, player.hitR))
+    if (!circleBlocked(nextX, player.y+player.hitOffsetY, player.hitR))
       player.x = nextX;
-    if (!circleBlocked(player.x, nextY + player.hitOffsetY, player.hitR))
+    if (!circleBlocked(player.x, nextY+player.hitOffsetY, player.hitR))
       player.y = nextY;
 
   } else {
-    player.dir = wasDir;
+    player.dir = lastDir;
   }
 
-  // Always animate (wing flap)
+  // Always flap wings
   player.frameTimer += dt;
   if (player.frameTimer > 0.15) {
     player.frameIndex = (player.frameIndex + 1) % animPattern.length;
     player.frameTimer = 0;
   }
 
-  // Idle hover bobbing
-  if (!player.moving) {
+  // Idle hover bob
+  if (!player.moving)
     player.idleBobTime += dt * 2;
-  } else {
+  else
     player.idleBobTime = 0;
-  }
 
-  // Bell swing physics
-  const accel = player.moving ? -sdX * 0.5 : 0;
-  player.bellSwingVel += accel;
-  player.bellSwingVel *= 0.92;
-  player.bellSwing += player.bellSwingVel;
+  // Proper pendulum physics for bell
+  let swingSpeed = 6;
+  let damping = 0.93;
+  let maxAngle = 0.35;
+
+  let targetAngle = player.moving ? (-sdX * maxAngle) : 0;
+  player.bellSwing += (targetAngle - player.bellSwing) * swingSpeed * dt;
+  player.bellSwing *= damping;
 
   updateCamera();
 }
@@ -331,56 +330,57 @@ function drawPlayer() {
   const dir = player.dir;
 
   const sheet =
-      dir === "front" ? owlFront :
-      dir === "back"  ? owlBack  :
-                        owlSide;
-
-  const drawX = player.x - camera.x;
-  let drawY = player.y - camera.y;
-
-  // Idle bob offset
-  if (!player.moving)
-    drawY += Math.sin(player.idleBobTime) * 4;
+    dir === "front" ? owlFront :
+    dir === "back" ? owlBack :
+                     owlSide;
 
   const scaledOwlW = OWL_W * player.scale;
   const scaledOwlH = OWL_H * player.scale;
   const scaledBellW = BELL_W * player.scale;
   const scaledBellH = BELL_H * player.scale;
 
-  // Bell frame selection
+  const drawX = player.x - camera.x;
+  let drawY = player.y - camera.y;
+
+  // Idle bobbing
+  if (!player.moving)
+    drawY += Math.sin(player.idleBobTime) * 4;
+
+  // Bell frame
   let bellFrame = 0;
   if (dir === "side") bellFrame = 1;
   if (dir === "back") bellFrame = 2;
 
-  // Bell swing offset
-  const swingX = Math.sin(player.bellSwing) * 10;
-
-  // Draw Bell
+  // ================================
+  // CORRECT PENDULUM BELL DRAWING
+  // ================================
   ctx.save();
-  if (dir === "side" && player.facingLeft) {
-    ctx.translate(drawX, drawY);
-    ctx.scale(-1,1);
-    ctx.drawImage(
-      bellSheet,
-      0, bellFrame * BELL_H, BELL_W, BELL_H,
-      -scaledBellW/2 + swingX,
-      -scaledBellH/2 + BELL_OFFSET_Y,
-      scaledBellW,
-      scaledBellH
-    );
-  } else {
-    ctx.drawImage(
-      bellSheet,
-      0, bellFrame * BELL_H, BELL_W, BELL_H,
-      drawX - scaledBellW/2 + swingX,
-      drawY - scaledBellH/2 + BELL_OFFSET_Y,
-      scaledBellW,
-      scaledBellH
-    );
-  }
+
+  // Pivot where owl holds the bell
+  let pivotX = drawX;
+  let pivotY = drawY + scaledOwlH*0.40;
+
+  ctx.translate(pivotX, pivotY);
+  ctx.rotate(player.bellSwing);
+
+  // If facing left, flip horizontally
+  let flip = (dir === "side" && player.facingLeft) ? -1 : 1;
+  ctx.scale(flip, 1);
+
+  ctx.drawImage(
+    bellSheet,
+    0, bellFrame * BELL_H, BELL_W, BELL_H,
+    -scaledBellW/2,
+    0,
+    scaledBellW,
+    scaledBellH
+  );
+
   ctx.restore();
 
-  // Draw Owl
+  // ================================
+  // DRAW OWL
+  // ================================
   ctx.save();
   if (dir === "side" && player.facingLeft) {
     ctx.translate(drawX, drawY);
@@ -409,7 +409,7 @@ function drawPlayer() {
 // ======================================================
 // DRAW
 // ======================================================
-function draw(){
+function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
   if (bg.complete)
@@ -420,11 +420,11 @@ function draw(){
 }
 
 // ======================================================
-// LOOP
+// MAIN LOOP
 // ======================================================
 let last = 0;
 function loop(t){
-  const dt = (t - last) / 1000;
+  const dt = (t-last)/1000;
   last = t;
   update(dt);
   draw();
@@ -436,9 +436,7 @@ Promise.all([
   owlBack.decode(),
   owlSide.decode(),
   bellSheet.decode()
-]).then(() => {
-  requestAnimationFrame(loop);
-});
+]).then(() => requestAnimationFrame(loop));
 </script>
 
 </body>
