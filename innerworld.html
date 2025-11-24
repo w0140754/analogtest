@@ -79,7 +79,7 @@ resize();
 window.addEventListener("resize", resize);
 
 // ======================================================
-// ASSETS: background + collision map
+// ASSETS
 // ======================================================
 const bg = new Image();
 bg.src = `innerworld/${TILE_TYPE}_${TILE_RARITY}_bg.png`;
@@ -87,29 +87,23 @@ bg.src = `innerworld/${TILE_TYPE}_${TILE_RARITY}_bg.png`;
 const collisionImg = new Image();
 collisionImg.src = `collision/${TILE_TYPE}_${TILE_RARITY}_col.png`;
 
-
-// ======================================================
-// OWL & BELL SPRITES
-// ======================================================
+// Owl sheets
 const owlFront = new Image(); owlFront.src = "owl_fly_front.png";
 const owlBack  = new Image(); owlBack.src  = "owl_fly_back.png";
 const owlSide  = new Image(); owlSide.src  = "owl_fly_side.png";
 
+// Bell sheet
 const bellSheet = new Image();
 bellSheet.src = "bell.png";
 
-const animPattern = [0,1,2,1];  // always loop
+const animPattern = [0,1,2,1];
 
-const OWL_W  = 300;
-const OWL_H  = 300;
-const BELL_W = 300;
-const BELL_H = 350;
-
+const OWL_W = 300, OWL_H = 300;
+const BELL_W = 300, BELL_H = 350;
 const BELL_OFFSET_Y = 80;
 
-
 // ======================================================
-// COLLISION MAP SETUP
+// COLLISION MAP
 // ======================================================
 const colCanvas = document.createElement("canvas");
 const colCtx = colCanvas.getContext("2d");
@@ -140,7 +134,6 @@ function circleBlocked(cx, cy, r) {
   return false;
 }
 
-
 // ======================================================
 // PLAYER
 // ======================================================
@@ -151,13 +144,22 @@ let player = {
   frameIndex: 0,
   frameTimer: 0,
   scale: 0.3,
+
   dir: "front",
   facingLeft: false,
   moving: false,
+
+  // New smoothing + animation upgrades:
+  dirSmoothX: 0,   // smoothed direction vector (x)
+  dirSmoothY: 1,   // smoothed direction vector (y)
+
+  idleBobTime: 0,  // for idle hover animation
+  bellSwing: 0,    // current swing angle in radians
+  bellSwingVel: 0, // velocity of bell swing
+
   hitR: 40,
   hitOffsetY: 10
 };
-
 
 // ======================================================
 // CAMERA
@@ -179,7 +181,6 @@ function updateCamera() {
   clampCamera();
 }
 
-
 // ======================================================
 // JOYSTICK
 // ======================================================
@@ -190,7 +191,7 @@ let joy = { active:false, dx:0, dy:0, originX:0, originY:0 };
 
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
-  joy.active  = true;
+  joy.active = true;
   joy.originX = t.clientX;
   joy.originY = t.clientY;
 
@@ -231,7 +232,6 @@ canvas.addEventListener("touchend", () => {
   joyDiv.style.display = "none";
 });
 
-
 // ======================================================
 // KEYBOARD
 // ======================================================
@@ -241,13 +241,12 @@ function setKey(e, v) {
   switch(e.key){
     case "w": case "ArrowUp":    keys.up = v; break;
     case "s": case "ArrowDown":  keys.down = v; break;
-    case "a": case "ArrowLeft": keys.left = v; break;
+    case "a": case "ArrowLeft":  keys.left = v; break;
     case "d": case "ArrowRight": keys.right = v; break;
   }
 }
 window.addEventListener("keydown", e => setKey(e,true));
 window.addEventListener("keyup",   e => setKey(e,false));
-
 
 // ======================================================
 // UPDATE
@@ -262,81 +261,109 @@ function update(dt){
   if (keys.down)  vy = 1;
 
   const wasDir = player.dir;
-
   player.moving = (Math.abs(vx) > 0.05 || Math.abs(vy) > 0.05);
 
-  if (player.moving) {
-    const len = Math.hypot(vx, vy);
-    if (len > 0) { vx /= len; vy /= len; }
+  // Smooth direction vectors
+  const targetDX = vx;
+  const targetDY = vy;
 
-    if (Math.abs(vx) > Math.abs(vy)) {
+  // Smooth blend (direction smoothing)
+  player.dirSmoothX += (targetDX - player.dirSmoothX) * 10 * dt;
+  player.dirSmoothY += (targetDY - player.dirSmoothY) * 10 * dt;
+
+  // Determine direction based on smoothed vector
+  let sdX = player.dirSmoothX;
+  let sdY = player.dirSmoothY;
+
+  if (player.moving) {
+    if (Math.abs(sdX) > Math.abs(sdY)) {
       player.dir = "side";
-      player.facingLeft = (vx < 0);
+      player.facingLeft = (sdX < 0);
     } else {
-      if (vy < 0) player.dir = "back";
-      else        player.dir = "front";
+      if (sdY < 0) player.dir = "back";
+      else         player.dir = "front";
       player.facingLeft = false;
     }
+
+    const len = Math.hypot(vx, vy);
+    if (len > 0) { vx /= len; vy /= len; }
 
     const nextX = player.x + vx * player.speed * dt;
     const nextY = player.y + vy * player.speed * dt;
 
     if (!circleBlocked(nextX, player.y + player.hitOffsetY, player.hitR))
       player.x = nextX;
-
     if (!circleBlocked(player.x, nextY + player.hitOffsetY, player.hitR))
       player.y = nextY;
 
   } else {
-    // retain last direction
     player.dir = wasDir;
   }
 
-  // ALWAYS ANIMATE — owl wings flap continuously
+  // Always animate (wing flap)
   player.frameTimer += dt;
   if (player.frameTimer > 0.15) {
     player.frameIndex = (player.frameIndex + 1) % animPattern.length;
     player.frameTimer = 0;
   }
 
+  // Idle hover bobbing
+  if (!player.moving) {
+    player.idleBobTime += dt * 2;
+  } else {
+    player.idleBobTime = 0;
+  }
+
+  // Bell swing physics
+  const accel = player.moving ? -sdX * 0.5 : 0;
+  player.bellSwingVel += accel;
+  player.bellSwingVel *= 0.92;
+  player.bellSwing += player.bellSwingVel;
+
   updateCamera();
 }
-
 
 // ======================================================
 // DRAW PLAYER
 // ======================================================
 function drawPlayer() {
-  const dir = player.dir;
   const frame = animPattern[player.frameIndex];
+  const dir = player.dir;
 
-  const owlSheet =
+  const sheet =
       dir === "front" ? owlFront :
       dir === "back"  ? owlBack  :
                         owlSide;
 
   const drawX = player.x - camera.x;
-  const drawY = player.y - camera.y;
+  let drawY = player.y - camera.y;
 
-  const scaledOwlW  = OWL_W  * player.scale;
-  const scaledOwlH  = OWL_H  * player.scale;
+  // Idle bob offset
+  if (!player.moving)
+    drawY += Math.sin(player.idleBobTime) * 4;
+
+  const scaledOwlW = OWL_W * player.scale;
+  const scaledOwlH = OWL_H * player.scale;
   const scaledBellW = BELL_W * player.scale;
   const scaledBellH = BELL_H * player.scale;
 
-  // Bell animation frame
+  // Bell frame selection
   let bellFrame = 0;
   if (dir === "side") bellFrame = 1;
   if (dir === "back") bellFrame = 2;
 
-  // ----- Draw Bell (Under Owl) -----
+  // Bell swing offset
+  const swingX = Math.sin(player.bellSwing) * 10;
+
+  // Draw Bell
   ctx.save();
   if (dir === "side" && player.facingLeft) {
     ctx.translate(drawX, drawY);
-    ctx.scale(-1, 1);
+    ctx.scale(-1,1);
     ctx.drawImage(
       bellSheet,
       0, bellFrame * BELL_H, BELL_W, BELL_H,
-      -scaledBellW/2,
+      -scaledBellW/2 + swingX,
       -scaledBellH/2 + BELL_OFFSET_Y,
       scaledBellW,
       scaledBellH
@@ -345,7 +372,7 @@ function drawPlayer() {
     ctx.drawImage(
       bellSheet,
       0, bellFrame * BELL_H, BELL_W, BELL_H,
-      drawX - scaledBellW/2,
+      drawX - scaledBellW/2 + swingX,
       drawY - scaledBellH/2 + BELL_OFFSET_Y,
       scaledBellW,
       scaledBellH
@@ -353,13 +380,13 @@ function drawPlayer() {
   }
   ctx.restore();
 
-  // ----- Draw Owl -----
+  // Draw Owl
   ctx.save();
   if (dir === "side" && player.facingLeft) {
     ctx.translate(drawX, drawY);
-    ctx.scale(-1, 1);
+    ctx.scale(-1,1);
     ctx.drawImage(
-      owlSheet,
+      sheet,
       frame * OWL_W, 0, OWL_W, OWL_H,
       -scaledOwlW/2,
       -scaledOwlH/2,
@@ -368,7 +395,7 @@ function drawPlayer() {
     );
   } else {
     ctx.drawImage(
-      owlSheet,
+      sheet,
       frame * OWL_W, 0, OWL_W, OWL_H,
       drawX - scaledOwlW/2,
       drawY - scaledOwlH/2,
@@ -379,38 +406,28 @@ function drawPlayer() {
   ctx.restore();
 }
 
-
 // ======================================================
-// DRAW LOOP
+// DRAW
 // ======================================================
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  if (bg.complete && bg.width > 0) {
-    ctx.drawImage(
-      bg,
-      camera.x, camera.y,
-      canvas.width, canvas.height,
-      0,0,
-      canvas.width, canvas.height
-    );
-  }
+  if (bg.complete)
+    ctx.drawImage(bg, camera.x, camera.y, canvas.width, canvas.height,
+                       0,0, canvas.width, canvas.height);
 
   drawPlayer();
 }
 
-
 // ======================================================
-// MAIN LOOP
+// LOOP
 // ======================================================
 let last = 0;
 function loop(t){
   const dt = (t - last) / 1000;
   last = t;
-
   update(dt);
   draw();
-
   requestAnimationFrame(loop);
 }
 
