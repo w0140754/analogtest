@@ -269,7 +269,7 @@ function update(dt){
 
   player.moving = (Math.abs(vx) > 0.05 || Math.abs(vy) > 0.05);
 
-  if (player.moving) {
+  if (player.moving or !player.moving) {
     const len = Math.hypot(vx, vy);
     if (len > 0) { vx /= len; vy /= len; }
 
