@@ -48,8 +48,6 @@ html, body {
 <body>
 
 <canvas id="gameCanvas"></canvas>
-
-<!-- Joystick -->
 <div id="joystick"><div id="stick"></div></div>
 
 <script>
@@ -71,7 +69,7 @@ const PLAYER_START = entry.playerStart;
 // CANVAS
 // ======================================================
 const canvas = document.getElementById("gameCanvas");
-const ctx    = canvas.getContext("2d");
+const ctx = canvas.getContext("2d");
 
 function resize() {
   canvas.width  = window.innerWidth;
@@ -89,31 +87,26 @@ bg.src = `innerworld/${TILE_TYPE}_${TILE_RARITY}_bg.png`;
 const collisionImg = new Image();
 collisionImg.src = `collision/${TILE_TYPE}_${TILE_RARITY}_col.png`;
 
-// ======================================================
-// NEW PLAYER SPRITES (OWL + BELL)
-// ======================================================
 
-// Owl sheets (3 horizontal frames each)
+// ======================================================
+// OWL & BELL SPRITES
+// ======================================================
 const owlFront = new Image(); owlFront.src = "owl_fly_front.png";
 const owlBack  = new Image(); owlBack.src  = "owl_fly_back.png";
 const owlSide  = new Image(); owlSide.src  = "owl_fly_side.png";
 
-// Bell: 3 vertical frames (front / side / back)
 const bellSheet = new Image();
 bellSheet.src = "bell.png";
 
-// Animation pattern 0 → 1 → 2 → 1
-const animPattern = [0,1,2,1];
+const animPattern = [0,1,2,1];  // always loop
 
-// Owl frame constants
-const OWL_W = 300;
-const OWL_H = 300;
-
-// Bell frame constants
+const OWL_W  = 300;
+const OWL_H  = 300;
 const BELL_W = 300;
 const BELL_H = 350;
 
 const BELL_OFFSET_Y = 80;
+
 
 // ======================================================
 // COLLISION MAP SETUP
@@ -147,6 +140,7 @@ function circleBlocked(cx, cy, r) {
   return false;
 }
 
+
 // ======================================================
 // PLAYER
 // ======================================================
@@ -156,7 +150,7 @@ let player = {
   speed: 180,
   frameIndex: 0,
   frameTimer: 0,
-  scale: 0.3,       // <<< YOUR SCALE
+  scale: 0.3,
   dir: "front",
   facingLeft: false,
   moving: false,
@@ -164,8 +158,9 @@ let player = {
   hitOffsetY: 10
 };
 
+
 // ======================================================
-// CAMERA (smooth)
+// CAMERA
 // ======================================================
 let camera = { x: 0, y: 0 };
 
@@ -184,17 +179,14 @@ function updateCamera() {
   clampCamera();
 }
 
+
 // ======================================================
 // JOYSTICK
 // ======================================================
 const joyDiv  = document.getElementById("joystick");
 const stick   = document.getElementById("stick");
 
-let joy = {
-  active:false,
-  dx:0, dy:0,
-  originX:0, originY:0
-};
+let joy = { active:false, dx:0, dy:0, originX:0, originY:0 };
 
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
@@ -234,12 +226,14 @@ canvas.addEventListener("touchmove", e => {
 
 canvas.addEventListener("touchend", () => {
   joy.active = false;
-  joy.dx = joy.dy = 0;
+  joy.dx = 0;
+  joy.dy = 0;
   joyDiv.style.display = "none";
 });
 
+
 // ======================================================
-// KEYBOARD SUPPORT
+// KEYBOARD
 // ======================================================
 const keys = { up:false, down:false, left:false, right:false };
 
@@ -247,33 +241,34 @@ function setKey(e, v) {
   switch(e.key){
     case "w": case "ArrowUp":    keys.up = v; break;
     case "s": case "ArrowDown":  keys.down = v; break;
-    case "a": case "ArrowLeft":  keys.left = v; break;
+    case "a": case "ArrowLeft": keys.left = v; break;
     case "d": case "ArrowRight": keys.right = v; break;
   }
 }
 window.addEventListener("keydown", e => setKey(e,true));
 window.addEventListener("keyup",   e => setKey(e,false));
 
+
 // ======================================================
-// UPDATE LOOP
+// UPDATE
 // ======================================================
 function update(dt){
   let vx = joy.dx;
   let vy = joy.dy;
 
-  // Keyboard overrides
   if (keys.left)  vx = -1;
   if (keys.right) vx = 1;
   if (keys.up)    vy = -1;
   if (keys.down)  vy = 1;
 
+  const wasDir = player.dir;
+
   player.moving = (Math.abs(vx) > 0.05 || Math.abs(vy) > 0.05);
-      
-    {
+
+  if (player.moving) {
     const len = Math.hypot(vx, vy);
     if (len > 0) { vx /= len; vy /= len; }
 
-    // Determine direction
     if (Math.abs(vx) > Math.abs(vy)) {
       player.dir = "side";
       player.facingLeft = (vx < 0);
@@ -286,65 +281,81 @@ function update(dt){
     const nextX = player.x + vx * player.speed * dt;
     const nextY = player.y + vy * player.speed * dt;
 
-    // Sliding collision
     if (!circleBlocked(nextX, player.y + player.hitOffsetY, player.hitR))
       player.x = nextX;
 
     if (!circleBlocked(player.x, nextY + player.hitOffsetY, player.hitR))
       player.y = nextY;
 
-    // Animation
-    player.frameTimer += dt;
-    if (player.frameTimer > 0.15) {
-      player.frameIndex = (player.frameIndex + 1) % animPattern.length;
-      player.frameTimer = 0;
-    }
   } else {
-    player.frameIndex = 0;
+    // retain last direction
+    player.dir = wasDir;
+  }
+
+  // ALWAYS ANIMATE — owl wings flap continuously
+  player.frameTimer += dt;
+  if (player.frameTimer > 0.15) {
+    player.frameIndex = (player.frameIndex + 1) % animPattern.length;
+    player.frameTimer = 0;
   }
 
   updateCamera();
 }
 
+
 // ======================================================
-// DRAW PLAYER (OWL + BELL)
+// DRAW PLAYER
 // ======================================================
 function drawPlayer() {
-  let owlSheet =
-    player.dir === "front" ? owlFront :
-    player.dir === "back"  ? owlBack  :
-                             owlSide;
-
+  const dir = player.dir;
   const frame = animPattern[player.frameIndex];
+
+  const owlSheet =
+      dir === "front" ? owlFront :
+      dir === "back"  ? owlBack  :
+                        owlSide;
+
+  const drawX = player.x - camera.x;
+  const drawY = player.y - camera.y;
 
   const scaledOwlW  = OWL_W  * player.scale;
   const scaledOwlH  = OWL_H  * player.scale;
   const scaledBellW = BELL_W * player.scale;
   const scaledBellH = BELL_H * player.scale;
 
-  const drawX = player.x - camera.x;
-  const drawY = player.y - camera.y;
-
-  // --- Bell direction frame ---
+  // Bell animation frame
   let bellFrame = 0;
-  if (player.dir === "side") bellFrame = 1;
-  if (player.dir === "back") bellFrame = 2;
+  if (dir === "side") bellFrame = 1;
+  if (dir === "back") bellFrame = 2;
 
-  // --- Draw bell first (under owl) ---
-  ctx.drawImage(
-    bellSheet,
-    0,
-    bellFrame * BELL_H,
-    BELL_W, BELL_H,
-    drawX - scaledBellW / 2,
-    drawY - scaledBellH / 2 + BELL_OFFSET_Y,
-    scaledBellW,
-    scaledBellH
-  );
-
-  // --- Draw OWL ---
+  // ----- Draw Bell (Under Owl) -----
   ctx.save();
-  if (player.dir === "side" && player.facingLeft) {
+  if (dir === "side" && player.facingLeft) {
+    ctx.translate(drawX, drawY);
+    ctx.scale(-1, 1);
+    ctx.drawImage(
+      bellSheet,
+      0, bellFrame * BELL_H, BELL_W, BELL_H,
+      -scaledBellW/2,
+      -scaledBellH/2 + BELL_OFFSET_Y,
+      scaledBellW,
+      scaledBellH
+    );
+  } else {
+    ctx.drawImage(
+      bellSheet,
+      0, bellFrame * BELL_H, BELL_W, BELL_H,
+      drawX - scaledBellW/2,
+      drawY - scaledBellH/2 + BELL_OFFSET_Y,
+      scaledBellW,
+      scaledBellH
+    );
+  }
+  ctx.restore();
+
+  // ----- Draw Owl -----
+  ctx.save();
+  if (dir === "side" && player.facingLeft) {
     ctx.translate(drawX, drawY);
     ctx.scale(-1, 1);
     ctx.drawImage(
@@ -368,8 +379,9 @@ function drawPlayer() {
   ctx.restore();
 }
 
+
 // ======================================================
-// MAIN DRAW LOOP
+// DRAW LOOP
 // ======================================================
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -377,13 +389,16 @@ function draw(){
   if (bg.complete && bg.width > 0) {
     ctx.drawImage(
       bg,
-      camera.x, camera.y, canvas.width, canvas.height,
-      0, 0, canvas.width, canvas.height
+      camera.x, camera.y,
+      canvas.width, canvas.height,
+      0,0,
+      canvas.width, canvas.height
     );
   }
 
   drawPlayer();
 }
+
 
 // ======================================================
 // MAIN LOOP
@@ -398,7 +413,16 @@ function loop(t){
 
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
+
+Promise.all([
+  owlFront.decode(),
+  owlBack.decode(),
+  owlSide.decode(),
+  bellSheet.decode()
+]).then(() => {
+  requestAnimationFrame(loop);
+});
 </script>
+
 </body>
 </html>
