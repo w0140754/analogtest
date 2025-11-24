@@ -268,7 +268,8 @@ function update(dt){
   if (keys.down)  vy = 1;
 
   player.moving = (Math.abs(vx) > 0.05 || Math.abs(vy) > 0.05);
-
+      
+    {
     const len = Math.hypot(vx, vy);
     if (len > 0) { vx /= len; vy /= len; }
 
