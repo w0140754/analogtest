@@ -353,11 +353,8 @@ function drawPlayer(){
   ctx.translate(pivotX, pivotY);
 
   // IMPORTANT: invert swing when flipped left so "lag" is always opposite screen motion
-  let swing = player.bellSwing;
-  if (dir === "side" && player.facingLeft) {
-    swing = -swing;
-  }
-  ctx.rotate(swing);
+  // Always use world-space swing direction
+  ctx.rotate(player.bellSwing);
 
   const flip = (dir === "side" && player.facingLeft) ? -1 : 1;
   ctx.scale(flip, 1);
