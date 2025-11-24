@@ -52,7 +52,7 @@ html, body {
 
 <script>
 // ======================================================
-// LOAD ENTRY FROM OUTERWORLD
+// LOAD ENTRY
 // ======================================================
 const raw = localStorage.getItem("innerworld_entry");
 if (!raw) {
@@ -79,7 +79,7 @@ resize();
 window.addEventListener("resize", resize);
 
 // ======================================================
-// ASSETS
+// BACKGROUND + COLLISION MAP
 // ======================================================
 const bg = new Image();
 bg.src = `innerworld/${TILE_TYPE}_${TILE_RARITY}_bg.png`;
@@ -87,23 +87,20 @@ bg.src = `innerworld/${TILE_TYPE}_${TILE_RARITY}_bg.png`;
 const collisionImg = new Image();
 collisionImg.src = `collision/${TILE_TYPE}_${TILE_RARITY}_col.png`;
 
-// Owl animation sheets
+// ======================================================
+// PLAYER ASSETS
+// ======================================================
 const owlFront = new Image(); owlFront.src = "owl_fly_front.png";
 const owlBack  = new Image(); owlBack.src  = "owl_fly_back.png";
 const owlSide  = new Image(); owlSide.src  = "owl_fly_side.png";
-
-// Bell sheet (3 vertical frames)
-const bellSheet = new Image();
-bellSheet.src = "bell.png";
+const bellSheet = new Image(); bellSheet.src = "bell.png";
 
 const animPattern = [0,1,2,1];
-
 const OWL_W = 300, OWL_H = 300;
 const BELL_W = 300, BELL_H = 350;
-const BELL_OFFSET_Y = 80;
 
 // ======================================================
-// COLLISION MAP
+// COLLISION MAP SETUP
 // ======================================================
 const colCanvas = document.createElement("canvas");
 const colCtx = colCanvas.getContext("2d");
@@ -126,10 +123,8 @@ function pixelBlocked(x, y) {
 function circleBlocked(cx, cy, r) {
   const N = 10;
   for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2;
-    const px = cx + Math.cos(a) * r;
-    const py = cy + Math.sin(a) * r;
-    if (pixelBlocked(px, py)) return true;
+    const a = (i/N) * Math.PI * 2;
+    if (pixelBlocked(cx + Math.cos(a)*r, cy + Math.sin(a)*r)) return true;
   }
   return false;
 }
@@ -141,23 +136,20 @@ let player = {
   x: PLAYER_START.x,
   y: PLAYER_START.y,
   speed: 180,
+  scale: 0.3,
+
   frameIndex: 0,
   frameTimer: 0,
-  scale: 0.3,
 
   dir: "front",
   facingLeft: false,
   moving: false,
-
-  // Smooth direction
   dirSmoothX: 0,
   dirSmoothY: 1,
 
-  // Idle hover
   idleBobTime: 0,
 
-  // Bell pendulum
-  bellSwing: 0,
+  bellSwing: 0, // radians
 
   hitR: 40,
   hitOffsetY: 10
@@ -166,18 +158,18 @@ let player = {
 // ======================================================
 // CAMERA
 // ======================================================
-let camera = { x: 0, y: 0 };
+let camera = {x:0,y:0};
 
 function clampCamera() {
-  if (bg.width > 0 && bg.height > 0) {
+  if (bg.width > 0) {
     camera.x = Math.max(0, Math.min(camera.x, bg.width - canvas.width));
     camera.y = Math.max(0, Math.min(camera.y, bg.height - canvas.height));
   }
 }
 
 function updateCamera() {
-  const tx = player.x - canvas.width / 2;
-  const ty = player.y - canvas.height / 2;
+  const tx = player.x - canvas.width/2;
+  const ty = player.y - canvas.height/2;
   camera.x += (tx - camera.x) * 0.1;
   camera.y += (ty - camera.y) * 0.1;
   clampCamera();
@@ -186,142 +178,127 @@ function updateCamera() {
 // ======================================================
 // JOYSTICK
 // ======================================================
-const joyDiv  = document.getElementById("joystick");
-const stick   = document.getElementById("stick");
+const joyDiv = document.getElementById("joystick");
+const stick = document.getElementById("stick");
+let joy = {active:false,dx:0,dy:0,originX:0,originY:0};
 
-let joy = { active:false, dx:0, dy:0, originX:0, originY:0 };
+canvas.addEventListener("touchstart", e =>{
+  const t=e.touches[0];
+  joy.active=true;
+  joy.originX=t.clientX; joy.originY=t.clientY;
 
-canvas.addEventListener("touchstart", e => {
-  const t = e.touches[0];
-  joy.active = true;
-  joy.originX = t.clientX;
-  joy.originY = t.clientY;
+  joyDiv.style.left=(t.clientX-60)+"px";
+  joyDiv.style.top=(t.clientY-60)+"px";
+  joyDiv.style.display="block";
 
-  joyDiv.style.left = (t.clientX - 60) + "px";
-  joyDiv.style.top  = (t.clientY - 60) + "px";
-  joyDiv.style.display = "block";
-
-  stick.style.left = "30px";
-  stick.style.top  = "30px";
+  stick.style.left="30px";
+  stick.style.top="30px";
 });
 
-canvas.addEventListener("touchmove", e => {
-  if (!joy.active) return;
-  const t = e.touches[0];
-  const dx = t.clientX - joy.originX;
-  const dy = t.clientY - joy.originY;
+canvas.addEventListener("touchmove", e=>{
+  if(!joy.active) return;
+  const t=e.touches[0];
+  const dx=t.clientX-joy.originX;
+  const dy=t.clientY-joy.originY;
 
-  const dist = Math.hypot(dx,dy);
-  const max = 40;
+  const dist=Math.hypot(dx,dy);
+  const max=40;
 
-  let ndx = dx, ndy = dy;
-  if (dist > max) {
-    ndx = dx / dist * max;
-    ndy = dy / dist * max;
-  }
+  let ndx=dx, ndy=dy;
+  if(dist>max){ ndx=dx/dist*max; ndy=dy/dist*max; }
 
-  stick.style.left = (30 + ndx) + "px";
-  stick.style.top  = (30 + ndy) + "px";
+  stick.style.left=(30+ndx)+"px";
+  stick.style.top=(30+ndy)+"px";
 
-  joy.dx = ndx/max;
-  joy.dy = ndy/max;
+  joy.dx=ndx/max; joy.dy=ndy/max;
 });
 
-canvas.addEventListener("touchend", () => {
-  joy.active = false;
-  joy.dx = joy.dy = 0;
-  joyDiv.style.display = "none";
+canvas.addEventListener("touchend", ()=>{
+  joy.active=false; joy.dx=joy.dy=0;
+  joyDiv.style.display="none";
 });
 
 // ======================================================
 // KEYBOARD
 // ======================================================
-const keys = { up:false, down:false, left:false, right:false };
-
-function setKey(e, v) {
+const keys={up:false,down:false,left:false,right:false};
+function setKey(e,v){
   switch(e.key){
-    case "w": case "ArrowUp":    keys.up = v; break;
-    case "s": case "ArrowDown":  keys.down = v; break;
-    case "a": case "ArrowLeft":  keys.left = v; break;
-    case "d": case "ArrowRight": keys.right = v; break;
+    case"w":case"ArrowUp":keys.up=v;break;
+    case"s":case"ArrowDown":keys.down=v;break;
+    case"a":case"ArrowLeft":keys.left=v;break;
+    case"d":case"ArrowRight":keys.right=v;break;
   }
 }
-window.addEventListener("keydown", e => setKey(e,true));
-window.addEventListener("keyup",   e => setKey(e,false));
+window.addEventListener("keydown",e=>setKey(e,true));
+window.addEventListener("keyup",e=>setKey(e,false));
 
 // ======================================================
-// UPDATE
+// UPDATE LOOP
 // ======================================================
 function update(dt){
-  let vx = joy.dx;
-  let vy = joy.dy;
+  let vx=joy.dx, vy=joy.dy;
+  if(keys.left)vx=-1;
+  if(keys.right)vx=1;
+  if(keys.up)vy=-1;
+  if(keys.down)vy=1;
 
-  if (keys.left)  vx = -1;
-  if (keys.right) vx = 1;
-  if (keys.up)    vy = -1;
-  if (keys.down)  vy = 1;
+  const lastDir=player.dir;
+  player.moving = (Math.abs(vx)>0.05 || Math.abs(vy)>0.05);
 
-  const lastDir = player.dir;
-  player.moving = (Math.abs(vx) > 0.05 || Math.abs(vy) > 0.05);
-
-  // Smooth direction vector
-  player.dirSmoothX += (vx - player.dirSmoothX) * 10 * dt;
-  player.dirSmoothY += (vy - player.dirSmoothY) * 10 * dt;
+  // Direction smoothing
+  player.dirSmoothX += (vx - player.dirSmoothX)*10*dt;
+  player.dirSmoothY += (vy - player.dirSmoothY)*10*dt;
 
   const sdX = player.dirSmoothX;
   const sdY = player.dirSmoothY;
 
-  if (player.moving) {
-    if (Math.abs(sdX) > Math.abs(sdY)) {
-      player.dir = "side";
-      player.facingLeft = (sdX < 0);
+  if(player.moving){
+    if(Math.abs(sdX)>Math.abs(sdY)){
+      player.dir="side";
+      player.facingLeft=(sdX<0);
     } else {
-      if (sdY < 0) player.dir = "back";
-      else         player.dir = "front";
-      player.facingLeft = false;
+      player.dir = (sdY<0)?"back":"front";
+      player.facingLeft=false;
     }
 
-    const len = Math.hypot(vx, vy);
-    if (len > 0) { vx /= len; vy /= len; }
+    const len=Math.hypot(vx,vy);
+    if(len>0){vx/=len;vy/=len;}
 
-    const nextX = player.x + vx * player.speed * dt;
-    const nextY = player.y + vy * player.speed * dt;
+    const nextX=player.x+vx*player.speed*dt;
+    const nextY=player.y+vy*player.speed*dt;
 
-    if (!circleBlocked(nextX, player.y + player.hitOffsetY, player.hitR))
-      player.x = nextX;
-    if (!circleBlocked(player.x, nextY + player.hitOffsetY, player.hitR))
-      player.y = nextY;
+    if(!circleBlocked(nextX,player.y+player.hitOffsetY,player.hitR))
+      player.x=nextX;
+    if(!circleBlocked(player.x,nextY+player.hitOffsetY,player.hitR))
+      player.y=nextY;
 
   } else {
-    player.dir = lastDir;
+    player.dir=lastDir;
   }
 
   // Always animate wings
-  player.frameTimer += dt;
-  if (player.frameTimer > 0.15) {
-    player.frameIndex = (player.frameIndex + 1) % animPattern.length;
-    player.frameTimer = 0;
+  player.frameTimer+=dt;
+  if(player.frameTimer>0.15){
+    player.frameIndex=(player.frameIndex+1)%animPattern.length;
+    player.frameTimer=0;
   }
 
-  // Idle hover bob
-  if (!player.moving)
-    player.idleBobTime += dt * 2;
-  else
-    player.idleBobTime = 0;
+  // Idle bob
+  if(!player.moving) player.idleBobTime+=dt*2;
+  else player.idleBobTime=0;
 
-  // Bell swing: always opposite movement direction
-  const swingSpeed = 6;
-  const damping = 0.93;
-  const maxAngle = 0.35; // ~20 degrees
+  // CORRECT PENDULUM SWING (vx controls it)
+  const swingSpeed=8;
+  const damping=0.92;
+  const maxAngle=0.35;
 
-  let targetAngle = 0;
-  if (player.moving) {
-    // moving right (sdX > 0) → bell leans left (negative)
-    if (sdX > 0.1)      targetAngle = -maxAngle;
-    else if (sdX < -0.1) targetAngle =  maxAngle; // moving left → bell leans right
+  let targetAngle=0;
+  if(player.moving){
+    targetAngle = -vx * maxAngle; // <-- FIXED: opposite movement
   }
 
-  player.bellSwing += (targetAngle - player.bellSwing) * swingSpeed * dt;
+  player.bellSwing += (targetAngle - player.bellSwing)*swingSpeed*dt;
   player.bellSwing *= damping;
 
   updateCamera();
@@ -330,49 +307,45 @@ function update(dt){
 // ======================================================
 // DRAW PLAYER
 // ======================================================
-function drawPlayer() {
-  const frame = animPattern[player.frameIndex];
-  const dir = player.dir;
+function drawPlayer(){
+  const frame=animPattern[player.frameIndex];
+  const dir=player.dir;
 
-  const sheet =
-    dir === "front" ? owlFront :
-    dir === "back"  ? owlBack  :
-                      owlSide;
+  const sheet = (dir==="front")?owlFront :
+                (dir==="back") ?owlBack :
+                                 owlSide;
 
-  const scaledOwlW = OWL_W * player.scale;
-  const scaledOwlH = OWL_H * player.scale;
-  const scaledBellW = BELL_W * player.scale;
-  const scaledBellH = BELL_H * player.scale;
+  const scaledOwlW=OWL_W*player.scale;
+  const scaledOwlH=OWL_H*player.scale;
+  const scaledBellW=BELL_W*player.scale;
+  const scaledBellH=BELL_H*player.scale;
 
-  const drawX = player.x - camera.x;
-  let drawY = player.y - camera.y;
+  const drawX=player.x-camera.x;
+  let drawY=player.y-camera.y;
 
-  // Idle bob
-  if (!player.moving)
-    drawY += Math.sin(player.idleBobTime) * 4;
+  if(!player.moving)
+    drawY += Math.sin(player.idleBobTime)*4;
 
-  // Bell frame
-  let bellFrame = 0;
-  if (dir === "side") bellFrame = 1;
-  if (dir === "back") bellFrame = 2;
+  let bellFrame=0;
+  if(dir==="side")bellFrame=1;
+  if(dir==="back")bellFrame=2;
 
-  // ====== BELL (PENDULUM) ======
+  // ======= BELL PENDULUM =======
   ctx.save();
 
-  // Pivot just below owl body (raised 10px)
-  const pivotX = drawX;
-  const pivotY = drawY + scaledOwlH * 0.40 - 10;
+  const pivotX=drawX;
+  const pivotY=drawY + scaledOwlH*0.40 - 20;  // RAISED BY ANOTHER 10px
 
-  ctx.translate(pivotX, pivotY);
+  ctx.translate(pivotX,pivotY);
   ctx.rotate(player.bellSwing);
 
-  const flip = (dir === "side" && player.facingLeft) ? -1 : 1;
-  ctx.scale(flip, 1);
+  const flip=(dir==="side" && player.facingLeft)?-1:1;
+  ctx.scale(flip,1);
 
   ctx.drawImage(
     bellSheet,
-    0, bellFrame * BELL_H, BELL_W, BELL_H,
-    -scaledBellW / 2,
+    0,bellFrame*BELL_H,BELL_W,BELL_H,
+    -scaledBellW/2,
     0,
     scaledBellW,
     scaledBellH
@@ -380,14 +353,14 @@ function drawPlayer() {
 
   ctx.restore();
 
-  // ====== OWL ======
+  // ======= OWL =======
   ctx.save();
-  if (dir === "side" && player.facingLeft) {
-    ctx.translate(drawX, drawY);
+  if(dir==="side" && player.facingLeft){
+    ctx.translate(drawX,drawY);
     ctx.scale(-1,1);
     ctx.drawImage(
       sheet,
-      frame * OWL_W, 0, OWL_W, OWL_H,
+      frame*OWL_W,0,OWL_W,OWL_H,
       -scaledOwlW/2,
       -scaledOwlH/2,
       scaledOwlW,
@@ -396,9 +369,9 @@ function drawPlayer() {
   } else {
     ctx.drawImage(
       sheet,
-      frame * OWL_W, 0, OWL_W, OWL_H,
-      drawX - scaledOwlW/2,
-      drawY - scaledOwlH/2,
+      frame*OWL_W,0,OWL_W,OWL_H,
+      drawX-scaledOwlW/2,
+      drawY-scaledOwlH/2,
       scaledOwlW,
       scaledOwlH
     );
@@ -409,14 +382,14 @@ function drawPlayer() {
 // ======================================================
 // DRAW
 // ======================================================
-function draw() {
+function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  if (bg.complete)
+  if(bg.complete)
     ctx.drawImage(
       bg,
-      camera.x, camera.y, canvas.width, canvas.height,
-      0, 0, canvas.width, canvas.height
+      camera.x,camera.y,canvas.width,canvas.height,
+      0,0,canvas.width,canvas.height
     );
 
   drawPlayer();
@@ -425,10 +398,9 @@ function draw() {
 // ======================================================
 // MAIN LOOP
 // ======================================================
-let last = 0;
+let last=0;
 function loop(t){
-  const dt = (t-last)/1000;
-  last = t;
+  const dt=(t-last)/1000; last=t;
   update(dt);
   draw();
   requestAnimationFrame(loop);
@@ -439,7 +411,7 @@ Promise.all([
   owlBack.decode(),
   owlSide.decode(),
   bellSheet.decode()
-]).then(() => requestAnimationFrame(loop));
+]).then(()=>requestAnimationFrame(loop));
 </script>
 
 </body>
