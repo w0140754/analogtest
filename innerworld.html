@@ -48,11 +48,13 @@ html, body {
 <body>
 
 <canvas id="gameCanvas"></canvas>
+
+<!-- Joystick -->
 <div id="joystick"><div id="stick"></div></div>
 
 <script>
 // ======================================================
-// LOAD ENTRY
+// LOAD ENTRY FROM OUTERWORLD
 // ======================================================
 const raw = localStorage.getItem("innerworld_entry");
 if (!raw) {
@@ -69,7 +71,7 @@ const PLAYER_START = entry.playerStart;
 // CANVAS
 // ======================================================
 const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
+const ctx    = canvas.getContext("2d");
 
 function resize() {
   canvas.width  = window.innerWidth;
@@ -79,7 +81,7 @@ resize();
 window.addEventListener("resize", resize);
 
 // ======================================================
-// BACKGROUND + COLLISION MAP
+// ASSETS: dynamic background + collision map
 // ======================================================
 const bg = new Image();
 bg.src = `innerworld/${TILE_TYPE}_${TILE_RARITY}_bg.png`;
@@ -87,18 +89,11 @@ bg.src = `innerworld/${TILE_TYPE}_${TILE_RARITY}_bg.png`;
 const collisionImg = new Image();
 collisionImg.src = `collision/${TILE_TYPE}_${TILE_RARITY}_col.png`;
 
-// ======================================================
-// PLAYER ASSETS
-// ======================================================
-const owlFront = new Image(); owlFront.src = "owl_fly_front.png";
-const owlBack  = new Image(); owlBack.src  = "owl_fly_back.png";
-const owlSide  = new Image(); owlSide.src  = "owl_fly_side.png";
-
-const bellSheet = new Image(); bellSheet.src = "bell.png";
-
-const animPattern = [0,1,2,1];
-const OWL_W  = 300, OWL_H  = 300;
-const BELL_W = 300, BELL_H = 350;
+const frames = ["player1.png","player2.png","player3.png"].map(src => {
+  const i = new Image();
+  i.src = src;
+  return i;
+});
 
 // ======================================================
 // COLLISION MAP SETUP
@@ -139,25 +134,17 @@ let player = {
   x: PLAYER_START.x,
   y: PLAYER_START.y,
   speed: 180,
-  scale: 0.3,
-
-  frameIndex: 0,
+  frame: 0,
   frameTimer: 0,
-
-  dir: "front",
+  scale: 0.20,
   facingLeft: false,
   moving: false,
-
-  idleBobTime: 0,
-
-  bellSwing: 0, // radians
-
   hitR: 40,
   hitOffsetY: 10
 };
 
 // ======================================================
-// CAMERA
+// CAMERA (smooth follow)
 // ======================================================
 let camera = { x: 0, y: 0 };
 
@@ -177,15 +164,20 @@ function updateCamera() {
 }
 
 // ======================================================
-// JOYSTICK
+// ANALOG JOYSTICK
 // ======================================================
 const joyDiv  = document.getElementById("joystick");
 const stick   = document.getElementById("stick");
-let joy = { active:false, dx:0, dy:0, originX:0, originY:0 };
+
+let joy = {
+  active:false,
+  dx:0, dy:0,
+  originX:0, originY:0
+};
 
 canvas.addEventListener("touchstart", e => {
   const t = e.touches[0];
-  joy.active = true;
+  joy.active  = true;
   joy.originX = t.clientX;
   joy.originY = t.clientY;
 
@@ -205,6 +197,7 @@ canvas.addEventListener("touchmove", e => {
 
   const dist = Math.hypot(dx, dy);
   const max = 40;
+
   let ndx = dx, ndy = dy;
   if (dist > max) {
     ndx = dx / dist * max;
@@ -225,7 +218,7 @@ canvas.addEventListener("touchend", () => {
 });
 
 // ======================================================
-// KEYBOARD
+// KEYBOARD (optional)
 // ======================================================
 const keys = { up:false, down:false, left:false, right:false };
 
@@ -237,163 +230,53 @@ function setKey(e, v) {
     case "d": case "ArrowRight": keys.right = v; break;
   }
 }
-window.addEventListener("keydown", e => setKey(e, true));
-window.addEventListener("keyup",   e => setKey(e, false));
+window.addEventListener("keydown", e => setKey(e,true));
+window.addEventListener("keyup",   e => setKey(e,false));
 
 // ======================================================
-// UPDATE
+// UPDATE (WITH SLIDING COLLISION A)
 // ======================================================
 function update(dt){
   let vx = joy.dx;
   let vy = joy.dy;
 
+  // Keyboard overrides (optional)
   if (keys.left)  vx = -1;
   if (keys.right) vx = 1;
   if (keys.up)    vy = -1;
   if (keys.down)  vy = 1;
 
-  const lastDir = player.dir;
   player.moving = (Math.abs(vx) > 0.05 || Math.abs(vy) > 0.05);
 
-  let vxNorm = 0, vyNorm = 0;
   if (player.moving) {
     const len = Math.hypot(vx, vy);
-    if (len > 0) {
-      vxNorm = vx / len;
-      vyNorm = vy / len;
-    }
+    if (len > 0) { vx /= len; vy /= len; }
 
-    // Direction from raw input
-    if (Math.abs(vxNorm) > Math.abs(vyNorm)) {
-      player.dir = "side";
-      player.facingLeft = (vxNorm < 0);
-    } else {
-      player.dir = (vyNorm < 0) ? "back" : "front";
-      player.facingLeft = false;
-    }
+    const nextX = player.x + vx * player.speed * dt;
+    const nextY = player.y + vy * player.speed * dt;
 
-    const nextX = player.x + vxNorm * player.speed * dt;
-    const nextY = player.y + vyNorm * player.speed * dt;
-
+    // 🔥 Slide movement logic (A)
     if (!circleBlocked(nextX, player.y + player.hitOffsetY, player.hitR))
       player.x = nextX;
+
     if (!circleBlocked(player.x, nextY + player.hitOffsetY, player.hitR))
       player.y = nextY;
 
+    // Animation
+    player.frameTimer += dt;
+    if (player.frameTimer > 0.15) {
+      player.frame = (player.frame + 1) % frames.length;
+      player.frameTimer = 0;
+    }
+
+    if (vx < 0) player.facingLeft = true;
+    else if (vx > 0) player.facingLeft = false;
+
   } else {
-    // retain last facing direction
-    player.dir = lastDir;
+    player.frame = 0;
   }
-
-  // Always animate wings
-  player.frameTimer += dt;
-  if (player.frameTimer > 0.15) {
-    player.frameIndex = (player.frameIndex + 1) % animPattern.length;
-    player.frameTimer = 0;
-  }
-
-  // Idle bobbing
-  if (!player.moving)
-    player.idleBobTime += dt * 2;
-  else
-    player.idleBobTime = 0;
-
-  // === PROPER PENDULUM USING HORIZONTAL VELOCITY ===
-  // vxNorm > 0 → moving right → bell should swing left (negative angle)
-  const swingSpeed = 8;
-  const damping    = 0.9;
-  const maxAngle   = 0.35;
-
-  let targetAngle = 0;
-  if (player.moving) {
-    targetAngle = -vxNorm * maxAngle;
-  }
-
-  player.bellSwing += (targetAngle - player.bellSwing) * swingSpeed * dt;
-  player.bellSwing *= damping;
 
   updateCamera();
-}
-
-// ======================================================
-// DRAW PLAYER
-// ======================================================
-function drawPlayer(){
-  const frame = animPattern[player.frameIndex];
-  const dir   = player.dir;
-
-  const sheet =
-    dir === "front" ? owlFront :
-    dir === "back"  ? owlBack  :
-                      owlSide;
-
-  const scaledOwlW  = OWL_W  * player.scale;
-  const scaledOwlH  = OWL_H  * player.scale;
-  const scaledBellW = BELL_W * player.scale;
-  const scaledBellH = BELL_H * player.scale;
-
-  const drawX = player.x - camera.x;
-  let   drawY = player.y - camera.y;
-
-  // Idle hover
-  if (!player.moving)
-    drawY += Math.sin(player.idleBobTime) * 4;
-
-  // Bell orientation frame
-  let bellFrame = 0;
-  if (dir === "side") bellFrame = 1;
-  if (dir === "back") bellFrame = 2;
-
-  // ===== BELL (PENDULUM AROUND PIVOT) =====
-  ctx.save();
-
-  const pivotX = drawX;
-  const pivotY = drawY + scaledOwlH * 0.40 - 20;  // raised an extra 10px
-
-  ctx.translate(pivotX, pivotY);
-
-  // IMPORTANT: invert swing when flipped left so "lag" is always opposite screen motion
-  // Always use world-space swing direction
-  ctx.rotate(player.bellSwing);
-
-  const flip = (dir === "side" && player.facingLeft) ? -1 : 1;
-  ctx.scale(flip, 1);
-
-  ctx.drawImage(
-    bellSheet,
-    0, bellFrame * BELL_H, BELL_W, BELL_H,
-    -scaledBellW / 2,
-    0,
-    scaledBellW,
-    scaledBellH
-  );
-
-  ctx.restore();
-
-  // ===== OWL =====
-  ctx.save();
-  if (dir === "side" && player.facingLeft) {
-    ctx.translate(drawX, drawY);
-    ctx.scale(-1, 1);
-    ctx.drawImage(
-      sheet,
-      frame * OWL_W, 0, OWL_W, OWL_H,
-      -scaledOwlW / 2,
-      -scaledOwlH / 2,
-      scaledOwlW,
-      scaledOwlH
-    );
-  } else {
-    ctx.drawImage(
-      sheet,
-      frame * OWL_W, 0, OWL_W, OWL_H,
-      drawX - scaledOwlW / 2,
-      drawY - scaledOwlH / 2,
-      scaledOwlW,
-      scaledOwlH
-    );
-  }
-  ctx.restore();
 }
 
 // ======================================================
@@ -402,14 +285,30 @@ function drawPlayer(){
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  if (bg.complete)
+  if (bg.complete && bg.width > 0) {
     ctx.drawImage(
       bg,
       camera.x, camera.y, canvas.width, canvas.height,
       0, 0, canvas.width, canvas.height
     );
+  }
 
-  drawPlayer();
+  const img = frames[player.frame];
+  const w = img.width * player.scale;
+  const h = img.height * player.scale;
+
+  const drawX = player.x - camera.x - w/2;
+  const drawY = player.y - camera.y - h/2;
+
+  ctx.save();
+  if (player.facingLeft) {
+    ctx.translate(drawX + w/2, drawY + h/2);
+    ctx.scale(-1,1);
+    ctx.drawImage(img, -w/2, -h/2, w, h);
+  } else {
+    ctx.drawImage(img, drawX, drawY, w, h);
+  }
+  ctx.restore();
 }
 
 // ======================================================
@@ -419,18 +318,13 @@ let last = 0;
 function loop(t){
   const dt = (t - last) / 1000;
   last = t;
+
   update(dt);
   draw();
+
   requestAnimationFrame(loop);
 }
-
-Promise.all([
-  owlFront.decode(),
-  owlBack.decode(),
-  owlSide.decode(),
-  bellSheet.decode()
-]).then(() => requestAnimationFrame(loop));
+requestAnimationFrame(loop);
 </script>
-
 </body>
 </html>
